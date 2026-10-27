@@ -35,6 +35,8 @@ on:
 
 jobs:
   lighthouse-badger-easy:
+    # needs a LIGHTHOUSE_BADGER_TOKEN secret; only configured on the upstream template repo
+    if: github.repository == 'alshedivat/al-folio'
     runs-on: ubuntu-latest
     timeout-minutes: 8
     steps:
