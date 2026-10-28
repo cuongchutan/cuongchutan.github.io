@@ -9,7 +9,7 @@
     --page-bg-day: url("/assets/img/background/hanoi-day-2.jpg");
     --page-bg-night: url("/assets/img/background/hanoi-night-2.jpg");
   }
-</style> <p>I grew up in Vietnam, studied and worked in Germany, and I love travelling. Wherever I go, I try to explore the local culture and bring back a few photos.</p> <div class="row"> <div class="col-md-6 mt-3"> <figure> <picture> <source class="responsive-img-srcset" srcset="/assets/img/travel/2025-ita-positano-480.webp 480w,/assets/img/travel/2025-ita-positano-800.webp 800w,/assets/img/travel/2025-ita-positano-1400.webp 1400w," type="image/webp" sizes="95vw"></source> <img src="/assets/img/travel/2025-ita-positano.jpg" class="img-fluid rounded z-depth-1" width="100%" height="auto" alt="Positano, Italy (2025)" data-zoomable="" loading="lazy" onerror="this.onerror=null; document.querySelectorAll('.responsive-img-srcset').forEach(function (n) { n.remove(); });"> </picture> <figcaption class="caption">Positano, Italy (2025)</figcaption> </figure> </div> <div class="col-md-6 mt-3"> <figure> <picture> <source class="responsive-img-srcset" srcset="/assets/img/travel/2022-vn-da-nang-480.webp 480w,/assets/img/travel/2022-vn-da-nang-800.webp 800w,/assets/img/travel/2022-vn-da-nang-1400.webp 1400w," type="image/webp" sizes="95vw"></source> <img src="/assets/img/travel/2022-vn-da-nang.jpg" class="img-fluid rounded z-depth-1" width="100%" height="auto" alt="Da Nang, Vietnam (2022)" data-zoomable="" loading="lazy" onerror="this.onerror=null; document.querySelectorAll('.responsive-img-srcset').forEach(function (n) { n.remove(); });"> </picture> <figcaption class="caption">Da Nang, Vietnam (2022)</figcaption> </figure> </div> </div> </article> </div> </div> <footer class="fixed-bottom" role="contentinfo"> <div class="container mt-0"> © Copyright 2026 Cuong Chu Tan. Powered by <a href="https://jekyllrb.com/" target="_blank" rel="external nofollow noopener">Jekyll</a> with <a href="https://github.com/alshedivat/al-folio" rel="external nofollow noopener" target="_blank">al-folio</a> theme. Hosted by <a href="https://pages.github.com/" target="_blank" rel="external nofollow noopener">GitHub Pages</a>. <script>document.querySelectorAll("#search-toggle .nav-link").forEach(function (el) { el.firstChild.textContent = "Search "; });</script> <style>
+</style> <p>I grew up in Vietnam, studied and worked in Germany, and I love travelling. Wherever I go, I try to explore the local culture and bring back a few photos.</p> <div class="row"> <div class="col-md-6 mt-3"> <figure> <picture> <source class="responsive-img-srcset" srcset="/assets/img/travel/2025-ita-positano-480.webp 480w,/assets/img/travel/2025-ita-positano-800.webp 800w,/assets/img/travel/2025-ita-positano-1400.webp 1400w," type="image/webp" sizes="95vw"></source> <img src="/assets/img/travel/2025-ita-positano.jpg" class="img-fluid rounded z-depth-1" width="100%" height="auto" alt="Positano, Italy (2025)" data-zoomable="" loading="lazy" onerror="this.onerror=null; document.querySelectorAll('.responsive-img-srcset').forEach(function (n) { n.remove(); });"> </picture> <figcaption class="caption">Positano, Italy (2025)</figcaption> </figure> </div> <div class="col-md-6 mt-3"> <figure> <picture> <source class="responsive-img-srcset" srcset="/assets/img/travel/2022-vn-da-nang-480.webp 480w,/assets/img/travel/2022-vn-da-nang-800.webp 800w,/assets/img/travel/2022-vn-da-nang-1400.webp 1400w," type="image/webp" sizes="95vw"></source> <img src="/assets/img/travel/2022-vn-da-nang.jpg" class="img-fluid rounded z-depth-1" width="100%" height="auto" alt="Da Nang, Vietnam (2022)" data-zoomable="" loading="lazy" onerror="this.onerror=null; document.querySelectorAll('.responsive-img-srcset').forEach(function (n) { n.remove(); });"> </picture> <figcaption class="caption">Da Nang, Vietnam (2022)</figcaption> </figure> </div> </div> </article> </div> </div> <footer class="fixed-bottom" role="contentinfo"> <div class="container mt-0"> © Copyright 2026 Cuong Chu Tan. Hosted by <a href="https://pages.github.com/" target="_blank" rel="external nofollow noopener">GitHub Pages</a>. <script>document.querySelectorAll("#search-toggle .nav-link").forEach(function (el) { el.firstChild.textContent = "Search "; });</script> <style>
   html { background-color: var(--global-bg-color); }
   body { background-color: transparent !important; }
   body::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
@@ -21,7 +21,34 @@
     -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); border-radius: 14px;
     padding: 1.5rem 2rem 2rem; margin-bottom: 2.5rem; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2); }
   @media (max-width: 576px) { div[role="main"] { padding: 1rem; border-radius: 10px; } }
-</style> </div> </footer> <script>
+  div[role="main"], footer, #back-to-top { transition: opacity 0.35s ease, visibility 0.35s; }
+  html.bg-only div[role="main"], html.bg-only footer, html.bg-only #back-to-top { opacity: 0; visibility: hidden; }
+  .bg-view-item { position: relative; }
+  #bg-toggle { background: none; border: 0; padding: 0; color: var(--global-text-color); cursor: pointer; width: 2rem; height: 2rem;
+    display: inline-flex; align-items: center; justify-content: center; }
+  @media (min-width: 576px) { #bg-toggle { transform: translateY(4px); } }
+  #bg-toggle:hover, html.bg-only #bg-toggle { color: var(--global-theme-color); }
+  .bg-tip { position: absolute; top: calc(100% + 10px); right: 0; width: 15rem; padding: 0.5rem 0.75rem; border-radius: 8px;
+    font-size: 0.85rem; line-height: 1.4; text-align: left; color: var(--global-text-color); background: var(--global-bg-color);
+    border: 1px solid var(--global-divider-color); box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2); opacity: 0; visibility: hidden;
+    transition: opacity 0.2s; pointer-events: none; z-index: 1100; }
+  .bg-view-item:hover .bg-tip, #bg-toggle:focus-visible + .bg-tip { opacity: 1; visibility: visible; }
+  .bg-tip::before { content: "I was born in Hanoi, Vietnam. The background is Hanoi by day. Click to see the photo."; }
+  html[data-theme="dark"] .bg-tip::before { content: "I was born in Hanoi, Vietnam. The background is Hanoi by night. Click to see the photo."; }
+  html.bg-only .bg-tip::before { content: "Hanoi, Vietnam: my hometown. Click again, or anywhere on the photo, to bring the page back."; }
+  @media (max-width: 576px) { .bg-tip { right: auto; left: 0; } }
+</style> <script>(function () {
+  var tg = document.querySelector("#navbar .toggle-container"); if (!tg) return;
+  var li = document.createElement("li"); li.className = "toggle-container bg-view-item";
+  li.innerHTML = '<button id="bg-toggle" type="button" aria-pressed="false" aria-label="Show only the background photo of Hanoi"><i class="fa-solid fa-image"></i></button><span class="bg-tip" role="tooltip"></span>';
+  tg.parentNode.insertBefore(li, tg);
+  var btn = li.querySelector("button"), icon = btn.querySelector("i"), root = document.documentElement;
+  function set(on) { root.classList.toggle("bg-only", on); btn.setAttribute("aria-pressed", String(on));
+    icon.className = on ? "fa-solid fa-eye" : "fa-solid fa-image"; }
+  btn.addEventListener("click", function () { set(!root.classList.contains("bg-only")); });
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape") set(false); });
+  document.addEventListener("click", function (e) { if (root.classList.contains("bg-only") && !e.target.closest("#navbar")) set(false); });
+})();</script> </div> </footer> <script>
   window.alFolio = {
     compatBootstrap: false
   };
@@ -69,22 +96,22 @@ ninja.data = [{
               },
             },{id: "projects-model-free-3d-object-reconstruction",
           title: 'Model-free 3D Object Reconstruction',
-          description: "Master&#39;s thesis · Carl Zeiss Group · 01/2026 – 10/2026",
+          description: "Master&#39;s Thesis Student · 01/2026 – 10/2026",
           section: "Projects",handler: () => {
               window.location.href = "/projects/1_zeiss_3d_reconstruction/";
             },},{id: "projects-robotic-pick-and-place-for-production",
           title: 'Robotic Pick-and-Place for Production',
-          description: "Robotics Software Intern · BMW Group · 03/2025 – 08/2025",
+          description: "Robotics Software Intern · 03/2025 – 08/2025",
           section: "Projects",handler: () => {
               window.location.href = "/projects/2_bmw_robot_cell/";
             },},{id: "projects-long-term-human-motion-prediction",
           title: 'Long-term Human Motion Prediction',
-          description: "University Research Assistant · FAU Erlangen-Nürnberg · 11/2024 – 04/2025",
+          description: "University Research Assistant · 11/2024 – 04/2025",
           section: "Projects",handler: () => {
               window.location.href = "/projects/3_fau_motion_prediction/";
             },},{id: "projects-mobile-robot-slam-amp-cubic-drone",
           title: 'Mobile Robot SLAM &amp;amp; Cubic Drone',
-          description: "University Research Assistant · Hanoi University of Science and Technology · 01/2020 – 04/2022",
+          description: "University Research Assistant · 01/2020 – 04/2022",
           section: "Projects",handler: () => {
               window.location.href = "/projects/5_hust_slam_cubic_drone/";
             },},{id: "projects-autonomous-guitar-filming-drone",

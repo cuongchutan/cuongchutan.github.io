@@ -159,13 +159,11 @@
       }
       .main {
         display: grid;
-        grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
         gap: 16px;
-        align-items: start;
       }
       .view {
         position: relative;
-        aspect-ratio: 16 / 11;
+        aspect-ratio: 16 / 10;
         background: var(--screen);
         border: 1px solid var(--line);
         border-radius: 12px;
@@ -197,6 +195,7 @@
       .controls {
         display: flex;
         align-items: center;
+        justify-content: center;
         gap: 8px;
         margin-top: 10px;
         flex-wrap: wrap;
@@ -216,7 +215,7 @@
         color: var(--accent);
       }
       .controls .sep {
-        flex: 1;
+        width: 16px;
       }
       aside {
         display: grid;
@@ -228,6 +227,18 @@
         color: var(--accent);
         letter-spacing: 0.1em;
         text-transform: uppercase;
+      }
+      .tables {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px 24px;
+      }
+      .tables h4 {
+        margin: 0 0 4px;
+        font: 600 11px/1.4 var(--mono);
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--muted);
       }
       aside h3 {
         font-size: 22px;
@@ -305,7 +316,7 @@
         vertical-align: middle;
       }
       @media (max-width: 760px) {
-        .main {
+        .tables {
           grid-template-columns: 1fr;
         }
         .cases {
@@ -340,7 +351,7 @@
             <button class="btn" id="prev">Previous</button>
             <button class="btn" id="next">Next</button>
             <span class="sep"></span>
-            <span id="meshToggle" hidden>
+            <span id="meshToggle">
               <button class="btn" data-mesh="surface" aria-pressed="true">Surface mesh</button>
               <button class="btn" data-mesh="watertight" aria-pressed="false">Watertight mesh</button>
             </span>
@@ -358,7 +369,16 @@
           <div class="key" id="ovKey" hidden>
             <span><i style="background: #3cdc3c"></i>Rendered 3D model</span><span><i style="background: #ff46d2"></i>Real object mask</span>
           </div>
-          <dl id="facts"></dl>
+          <div class="tables">
+            <div>
+              <h4>Input</h4>
+              <dl id="factsIn"></dl>
+            </div>
+            <div>
+              <h4 id="outHead">Output</h4>
+              <dl id="factsOut"></dl>
+            </div>
+          </div>
           <p class="note" id="snote" hidden></p>
         </aside>
       </div>
@@ -366,7 +386,7 @@
 
     <script src="metrics.js"></script>
     <script>
-      const VIEW = new URLSearchParams(location.search).get("view") === "results" ? "results" : "pipeline";
+      const FRAME = "reconstruction";
       const M = window.THESIS_METRICS;
       const CASEINFO = {
         drill: { label: "moving camera · static object", src: "IndustryShapes dataset" },
@@ -376,8 +396,8 @@
       const pct = (x) => `${(x * 100).toFixed(1)} %`;
 
       // Steps: each scene has a rail node index (`n`) and a duration in ms.
-      const PIPE = {
-        nodes: ["Input", "Reconstruction Pipeline"],
+      const FLOW = {
+        nodes: ["Input", "Reconstruction Pipeline", "Outputs"],
         scenes: [
           {
             n: 0,
@@ -413,29 +433,16 @@
           },
           {
             n: 1,
-            d: 6500,
-            k: "Reconstruction Pipeline · 4 / 4",
-            t: "Two output meshes",
-            hud: "PIPELINE · final meshes",
-            text: "Two meshes come out: a surface mesh where every part is backed by observations, and a closed, smooth watertight mesh.",
-          },
-        ],
-      };
-      const RES = {
-        nodes: ["3D Model", "Accuracy vs. CAD", "Silhouette Check"],
-        scenes: [
-          {
-            n: 0,
             d: 7000,
-            k: "Output · 3D model",
-            t: "Reconstructed meshes",
-            hud: "OUTPUT · meshes",
-            text: "The two meshes reconstructed from the RGB video alone, shown turning in place.",
+            k: "Reconstruction Pipeline · 4 / 4",
+            t: "The reconstructed 3D models",
+            hud: "PIPELINE · final meshes",
+            text: "Two meshes come out of the RGB video alone: a surface mesh where every part is backed by observations, and a closed, smooth watertight mesh.",
           },
           {
-            n: 1,
+            n: 2,
             d: 9000,
-            k: "Output · accuracy",
+            k: "Outputs · 1 / 2",
             t: "Accuracy against the CAD model",
             hud: "OUTPUT · error vs. CAD",
             text: "Where a CAD model exists, the mesh is aligned to it and every surface point is coloured by its distance to the CAD surface.",
@@ -443,14 +450,15 @@
           {
             n: 2,
             d: 9000,
-            k: "Output · silhouettes",
+            k: "Outputs · 2 / 2",
             t: "Does the model match every view?",
             hud: "OUTPUT · silhouette overlap",
             text: "The 3D model is rendered back into each input view and compared with the real object mask. The overlap (IoU) is measured for every view.",
           },
         ],
       };
-      const FLOW = VIEW === "results" ? RES : PIPE;
+      const ACC = 5,
+        SIL = 6;
       const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
       // ---------- theme: follow the embedding page (al-folio sets data-theme on <html>), else the OS
@@ -472,7 +480,7 @@
       // ---------- report our height to the embedding page
       function postHeight() {
         if (parent !== window)
-          parent.postMessage({ thesisFrame: VIEW, h: Math.ceil(document.querySelector(".wrap").getBoundingClientRect().height) + 4 }, "*");
+          parent.postMessage({ thesisFrame: FRAME, h: Math.ceil(document.querySelector(".wrap").getBoundingClientRect().height) + 4 }, "*");
       }
       new ResizeObserver(postHeight).observe(document.querySelector(".wrap"));
 
@@ -531,20 +539,17 @@
 
       function facts() {
         const m = M[caseKey],
-          s = FLOW.scenes[scene],
           mm = m.meshes[mesh],
-          info = CASEINFO[caseKey];
+          info = CASEINFO[caseKey],
+          cad = m.cad;
         const row = (a, b, na) => `<div><dt>${a}</dt><dd${na ? ' class="na"' : ""}>${b}</dd></div>`;
-        if (VIEW === "pipeline") {
-          return [
-            row("Input frames", m.input_frames),
-            row("Motion setup", info.label),
-            row("Source", info.src),
-            row("Views in the final model", `${m.views} of ${m.input_frames}`),
-          ].join("");
-        }
-        const cad = m.cad;
-        return [
+        document.getElementById("factsIn").innerHTML = [
+          row("Input frames", m.input_frames),
+          row("Motion setup", info.label),
+          row("Source", info.src),
+        ].join("");
+        document.getElementById("outHead").textContent = `Output · ${mesh} mesh`;
+        document.getElementById("factsOut").innerHTML = [
           row("Chamfer distance", cad ? `${mm.chamfer.toFixed(2)} mm` : "n/a: no CAD", !cad),
           row("F-score (τ = 2 % of size)", cad ? pct(mm.fscore2) : "n/a: no CAD", !cad),
           row("Mean silhouette IoU", pct(mm.iou_mean)),
@@ -557,21 +562,19 @@
         document.getElementById("snum").textContent = s.k;
         document.getElementById("stitle").textContent = s.t;
         document.getElementById("stext").textContent = s.text;
-        document.getElementById("facts").innerHTML = facts();
+        facts();
         document.getElementById("hudL").textContent = s.hud.toUpperCase();
-        document.getElementById("hudR").textContent =
-          VIEW === "results" ? (mesh === "surface" ? "surface mesh" : "watertight mesh") : CASEINFO[caseKey].label;
-        const showLegend = VIEW === "results" && s.n === 1 && m.cad;
+        document.getElementById("hudR").textContent = s.n === 2 ? `${mesh} mesh` : CASEINFO[caseKey].label;
+        const showLegend = scene === ACC && m.cad;
         document.getElementById("legend").hidden = !showLegend;
         if (showLegend) {
           const c = m.meshes[mesh].clip;
           document.getElementById("lgLo").textContent = `−${c.toFixed(1)} mm`;
           document.getElementById("lgHi").textContent = `+${c.toFixed(1)} mm`;
         }
-        document.getElementById("ovKey").hidden = !(VIEW === "results" && s.n === 2);
-        document.getElementById("meshToggle").hidden = VIEW !== "results";
+        document.getElementById("ovKey").hidden = scene !== SIL;
         let note = "";
-        if (VIEW === "results" && !m.cad)
+        if (!m.cad)
           note =
             "No CAD model exists for the car, so its geometric accuracy (Chamfer distance, F-score) cannot be measured. It is checked against the real object masks only.";
         else if (caseKey === "dragon")
@@ -730,7 +733,8 @@
       }
 
       // ---------- scenes (u = 0..1 progress within the scene, T = seconds)
-      function drawPipeline(W, H, u, T) {
+      function draw(W, H, u, T) {
+        if (scene >= ACC) return drawResults(W, H, u, T);
         const c = caseKey,
           d = data[c],
           A = (p) => load(`${c}/${p}`);
@@ -803,16 +807,8 @@
           m = M[c],
           mm = m.meshes[mesh],
           A = (p) => load(`${c}/${p}`),
-          s = FLOW.scenes[scene],
           fr = Math.floor(T * 4);
-        if (s.n === 0) {
-          const half = W / 2;
-          turntable(A("surface_turntable.webp"), 0, 32, half, H - 64, fr);
-          turntable(A("watertight_turntable.webp"), half, 32, half, H - 64, fr);
-          divider(half, H);
-          label("surface mesh", 16, H - 14);
-          label("watertight mesh", half + 12, H - 14);
-        } else if (s.n === 1) {
+        if (scene === ACC) {
           const half = W / 2;
           if (m.cad) {
             turntable(A("cad_turntable.webp"), 0, 32, half, H - 64, fr);
@@ -888,7 +884,7 @@
         });
         ctx.fillStyle = "#0b0d10";
         ctx.fillRect(0, 0, W, H);
-        (VIEW === "results" ? drawResults : drawPipeline)(W, H, u, (reduce ? 0 : now) / 1000);
+        draw(W, H, u, (reduce ? 0 : now) / 1000);
         requestAnimationFrame(tick);
       }
       ["drill", "dragon", "car"].forEach(preload);
