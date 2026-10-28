@@ -3,9 +3,9 @@
 # -----------------------------------------------------------------------------
 
 title: blank # the website title (if blank, full name will be used instead)
-first_name: Chu
-middle_name: Tan
-last_name: Cuong
+first_name: Cuong # shown in bold
+middle_name: Chu
+last_name: Tan
 contact_note: >
   The best way to reach me is by email or LinkedIn.
 description: > # the ">" symbol means to ignore newlines until "footer_text:"
@@ -13,6 +13,20 @@ description: > # the ">" symbol means to ignore newlines until "footer_text:"
 footer_text: >
   Powered by <a href="https://jekyllrb.com/" target="_blank">Jekyll</a> with <a href="https://github.com/alshedivat/al-folio">al-folio</a> theme.
   Hosted by <a href="https://pages.github.com/" target="_blank">GitHub Pages</a>.
+  <script>document.querySelectorAll("#search-toggle .nav-link").forEach(function (el) { el.firstChild.textContent = "Search "; });</script>
+  <style>
+    html { background-color: var(--global-bg-color); }
+    body { background-color: transparent !important; }
+    body::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+      background: var(--page-bg-day, url("/assets/img/background/hanoi-day-3.jpg")) center / cover no-repeat; }
+    html[data-theme="dark"] body::before { background-image: var(--page-bg-night, url("/assets/img/background/hanoi-night-3.jpg")); }
+    #navbar { background-color: color-mix(in srgb, var(--global-bg-color) 82%, transparent) !important;
+      -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
+    div[role="main"] { background-color: color-mix(in srgb, var(--global-bg-color) 86%, transparent);
+      -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); border-radius: 14px;
+      padding: 1.5rem 2rem 2rem; margin-bottom: 2.5rem; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2); }
+    @media (max-width: 576px) { div[role="main"] { padding: 1rem; border-radius: 10px; } }
+  </style>
 keywords: robotics, ROS2, C++, Python, 3D perception, computer vision, MoveIt2, portfolio # add your own keywords or leave empty
 lang: en # the language of your site (for example: en, fr, cn, ru, etc.)
 icon: 🤖 # the emoji used as the favicon (alternatively, provide image name in /assets/img/)
@@ -239,6 +253,7 @@ exclude:
   - gems/
   - migrations/
   - vendor
+  - assets/img/background/*.png
 keep_files:
   - CNAME
   - .nojekyll
@@ -439,6 +454,7 @@ imagemagick:
     - 1400
   input_directories:
     - assets/img/
+    - assets/certificates/
   input_formats:
     - ".jpg"
     - ".jpeg"

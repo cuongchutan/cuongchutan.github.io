@@ -1,0 +1,13 @@
+# Networks shown at the top of the Achievements page (sorted by start date, newest first).
+# Leave `end:` empty for an ongoing membership ("present").
+
+- start: 2024-04-01
+  end: 2026-04-01
+  title: Bavarian Graduate School of Computational Engineering (BGCE)
+  organization: Elitenetzwerk Bayern · Munich, Germany
+  url: https://www.bgce.de/participants/
+
+- start: 2019-01-01
+  end: 2020-12-01
+  title: FPT Center for Young Talents
+  organization: Financing and Promoting Technology (FPT) Corporation · Hanoi, Vietnam

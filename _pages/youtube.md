@@ -11,6 +11,13 @@ videos:
   - oyHp_wElxpU # Có Hẹn Với Thanh Xuân!
 ---
 
+<style>
+  :root {
+    --page-bg-day: url("{{ '/assets/img/background/hanoi-day-1.jpg' | relative_url }}");
+    --page-bg-night: url("{{ '/assets/img/background/hanoi-night-1.jpg' | relative_url }}");
+  }
+</style>
+
 Making music cover videos with my guitar is how I switch off from robotics. Everything is on my channel, **[youtube.com/@ctc2506](https://www.youtube.com/@ctc2506)** — here are a few favourites.
 
 <div class="row">

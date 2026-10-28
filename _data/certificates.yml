@@ -1,33 +1,39 @@
-# Certificates & awards shown on the Certificates page (sorted by date, newest first).
+# Certificates & awards shown on the Achievements page (sorted by date, newest first).
 # To attach a certificate, put the file in assets/certificates/ and set `file:`, e.g.
-#   file: assets/certificates/ieee-ras-multi-robot-2025.pdf   (shows a "View certificate" button)
-#   file: assets/certificates/falling-walls-2019.jpg          (shows a zoomable thumbnail)
+#   file: assets/certificates/falling-walls-2019.jpg   (shows a zoomable image)
+#   file: assets/certificates/some-certificate.pdf     (shows an "Open PDF" button)
+#   preview: assets/certificates/some-certificate-preview.jpg   (optional image of the PDF, links to it)
 # Remove personal data (date of birth, address, ID numbers) from scans before uploading.
 
 - date: 2025-08-01
   title: IEEE RAS Summer School on Multi-Robot Systems
   issuer: Czech Technical University in Prague
-  note: Ranked 4th of 42 teams in the Real World challenge.
+  note: Prague, Czech Republic. Ranked 4th of 42 teams in the Real World challenge.
   file: assets/certificates/2025-multi-rob.jpg
 
 - date: 2025-07-01
   title: IEEE RAS Summer School on Optimization for Robotics
   issuer: University of Patras
+  note: Patras, Greece.
   file: assets/certificates/2025-opt-rob.jpg
 
 - date: 2025-06-01
   title: CINI Summer School on HPC for Science, Industry, and Society
   issuer: Consorzio Interuniversitario Nazionale per l'Informatica (CINI)
+  note: Naples, Italy. 33.5 hours of lectures and hands-on sessions; passed the final exam.
   file: assets/certificates/2025-cini-hpc.pdf
+  preview: assets/certificates/2025-cini-hpc-preview.jpg
 
 - date: 2022-07-01
   title: Certificate of Completion — BGSV Embedded Academy
   issuer: Bosch Global Software Technologies Vietnam
+  note: Ho Chi Minh City, Vietnam.
   file: assets/certificates/2022-bosch-embedded-academy.jpeg
 
 - date: 2020-12-01
   title: Certificate of Scholarship
   issuer: Vietnam School of Science
+  note: 8th Vietnam School of Science, Quy Nhon, Vietnam.
   file: assets/certificates/2020-vsss08.jpeg
 
 - date: 2020-06-01
@@ -39,4 +45,5 @@
 - date: 2019-05-01
   title: Second Prize, Falling Walls Lab Vietnam
   issuer: German Academic Exchange Service (DAAD) in Vietnam
+  note: "Pitch: Breaking the Wall of Leaf Packaging."
   file: assets/certificates/2019-daad-vn.jpeg

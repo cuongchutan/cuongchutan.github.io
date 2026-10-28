@@ -23,3 +23,6 @@ __pycache__/
 # Private originals: the full CV has phone, address and date of birth; the site uses assets/img/prof_pic.jpg
 assets/Chu Tan Cuong - CV after MSc graduation.pdf
 assets/Chu Tan Cuong - Profile image.JPG
+
+# Full-size PNG originals of the page backgrounds; the site uses the compressed .jpg copies
+assets/img/background/*.png

@@ -1,0 +1,899 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Thesis Reconstruction Results</title>
+    <style>
+      /* Light/dark tokens follow the portfolio's al-folio palette; the viewport stays a dark "screen" in both. */
+      :root {
+        --bg: transparent;
+        --panel: #ffffff;
+        --line: rgba(0, 0, 0, 0.12);
+        --fg: #111111;
+        --muted: #6b6b6b;
+        --accent: #b509ac;
+        --cam: #127f90;
+        --ok: #2f8a4f;
+        --warn: #b8691a;
+        --screen: #0b0d10;
+        --font: "Roboto", "Segoe UI", Helvetica, Arial, sans-serif;
+        --mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+        color-scheme: light;
+      }
+      :root[data-theme="dark"] {
+        --panel: #212529;
+        --line: #424246;
+        --fg: #e8e8e8;
+        --muted: #9a9a9a;
+        --accent: #2698ba;
+        --cam: #5ec8d8;
+        --ok: #69c48a;
+        --warn: #f0a24a;
+        color-scheme: dark;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        background: var(--bg);
+      }
+      body {
+        color: var(--fg);
+        font: 15px/1.55 var(--font);
+      }
+      [hidden] {
+        display: none !important;
+      }
+      .wrap {
+        display: grid;
+        gap: 16px;
+        padding: 4px 2px 8px;
+      }
+      .cases {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 8px;
+      }
+      .case {
+        all: unset;
+        cursor: pointer;
+        padding: 9px 12px;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: var(--panel);
+        min-width: 0;
+      }
+      .case:focus-visible,
+      .btn:focus-visible,
+      .node:focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 2px;
+      }
+      .case[aria-pressed="true"] {
+        border-color: var(--accent);
+        box-shadow: inset 0 0 0 1px var(--accent);
+      }
+      .case b {
+        display: block;
+        font-weight: 600;
+        font-size: 14px;
+        line-height: 1.25;
+      }
+      .case span {
+        display: block;
+        font-size: 12.5px;
+        color: var(--muted);
+      }
+      .rail {
+        position: relative;
+        display: grid;
+        gap: 6px;
+        padding-top: 12px;
+      }
+      .rail::before {
+        content: "";
+        position: absolute;
+        left: 8%;
+        right: 8%;
+        top: 19px;
+        height: 2px;
+        background: var(--line);
+      }
+      .node {
+        all: unset;
+        cursor: pointer;
+        position: relative;
+        display: grid;
+        justify-items: center;
+        gap: 5px;
+        text-align: center;
+        min-width: 0;
+      }
+      .dot {
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        background: var(--panel);
+        border: 2px solid var(--line);
+        z-index: 1;
+      }
+      .node.done .dot {
+        border-color: var(--accent);
+        background: color-mix(in srgb, var(--accent) 35%, var(--panel));
+      }
+      .node.on .dot {
+        border-color: var(--accent);
+        background: var(--accent);
+      }
+      .node small {
+        font: 600 11px/1 var(--mono);
+        letter-spacing: 0.08em;
+        color: var(--muted);
+        text-transform: uppercase;
+      }
+      .node.on small {
+        color: var(--fg);
+      }
+      .bar {
+        display: flex;
+        gap: 3px;
+        height: 3px;
+        width: 70%;
+      }
+      .bar i {
+        flex: 1;
+        background: var(--line);
+        border-radius: 2px;
+        overflow: hidden;
+        position: relative;
+      }
+      .bar i::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        width: var(--p, 0%);
+        background: var(--accent);
+      }
+      .main {
+        display: grid;
+        grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+        gap: 16px;
+        align-items: start;
+      }
+      .view {
+        position: relative;
+        aspect-ratio: 16 / 11;
+        background: var(--screen);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        overflow: hidden;
+      }
+      .view canvas {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+      }
+      .hud {
+        position: absolute;
+        left: 10px;
+        top: 9px;
+        right: 10px;
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+        font: 500 11.5px/1.3 var(--mono);
+        color: #d3d8de;
+        pointer-events: none;
+      }
+      .hud span {
+        background: rgba(10, 12, 15, 0.72);
+        padding: 4px 8px;
+        border-radius: 6px;
+      }
+      .controls {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-top: 10px;
+        flex-wrap: wrap;
+      }
+      .btn {
+        all: unset;
+        cursor: pointer;
+        font-size: 13px;
+        line-height: 1;
+        padding: 8px 12px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--panel);
+      }
+      .btn[aria-pressed="true"] {
+        border-color: var(--accent);
+        color: var(--accent);
+      }
+      .controls .sep {
+        flex: 1;
+      }
+      aside {
+        display: grid;
+        gap: 12px;
+        min-width: 0;
+      }
+      aside .num {
+        font: 600 12px/1 var(--mono);
+        color: var(--accent);
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+      }
+      aside h3 {
+        font-size: 22px;
+        line-height: 1.2;
+        font-weight: 500;
+        margin: 0;
+      }
+      aside p {
+        margin: 0;
+        color: var(--muted);
+      }
+      dl {
+        margin: 0;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        border-top: 1px solid var(--line);
+      }
+      dl div {
+        display: contents;
+      }
+      dt,
+      dd {
+        padding: 8px 0;
+        border-bottom: 1px solid var(--line);
+      }
+      dt {
+        color: var(--muted);
+        font-size: 13.5px;
+        padding-right: 12px;
+      }
+      dd {
+        margin: 0;
+        font: 600 14px/1.4 var(--mono);
+        font-variant-numeric: tabular-nums;
+        text-align: right;
+      }
+      dd.na {
+        color: var(--muted);
+        font-weight: 400;
+      }
+      .note {
+        font-size: 13px;
+        color: var(--muted);
+        border-left: 3px solid var(--warn);
+        padding-left: 10px;
+      }
+      .legend {
+        display: grid;
+        gap: 4px;
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .legend .ramp {
+        height: 10px;
+        border-radius: 5px;
+        background: linear-gradient(to right, #00007f, #0000ff, #00ffff, #7fff7f, #ffff00, #ff0000, #7f0000);
+      }
+      .legend .ticks {
+        display: flex;
+        justify-content: space-between;
+        font-family: var(--mono);
+      }
+      .key {
+        display: flex;
+        gap: 14px;
+        flex-wrap: wrap;
+        font-size: 12.5px;
+        color: var(--muted);
+      }
+      .key i {
+        display: inline-block;
+        width: 12px;
+        height: 3px;
+        margin-right: 6px;
+        vertical-align: middle;
+      }
+      @media (max-width: 760px) {
+        .main {
+          grid-template-columns: 1fr;
+        }
+        .cases {
+          grid-template-columns: 1fr;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .bar i::after {
+          transition: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="cases" role="group" aria-label="Example object">
+        <button class="case" data-case="drill" aria-pressed="true"><b>Power drill</b><span>Moving camera, static object</span></button>
+        <button class="case" data-case="dragon" aria-pressed="false"><b>Dragon figure</b><span>Static camera, object turned by hand</span></button>
+        <button class="case" data-case="car" aria-pressed="false"><b>Driving car</b><span>Camera and object both move</span></button>
+      </div>
+
+      <nav class="rail" id="rail" aria-label="Steps"></nav>
+
+      <div class="main">
+        <div>
+          <div class="view">
+            <canvas id="cv" aria-label="Animation of the current step"></canvas>
+            <div class="hud"><span id="hudL"></span><span id="hudR"></span></div>
+          </div>
+          <div class="controls">
+            <button class="btn" id="play">Pause</button>
+            <button class="btn" id="prev">Previous</button>
+            <button class="btn" id="next">Next</button>
+            <span class="sep"></span>
+            <span id="meshToggle" hidden>
+              <button class="btn" data-mesh="surface" aria-pressed="true">Surface mesh</button>
+              <button class="btn" data-mesh="watertight" aria-pressed="false">Watertight mesh</button>
+            </span>
+          </div>
+        </div>
+        <aside>
+          <div class="num" id="snum"></div>
+          <h3 id="stitle"></h3>
+          <p id="stext"></p>
+          <div class="legend" id="legend" hidden>
+            <div class="ramp"></div>
+            <div class="ticks"><span id="lgLo"></span><span>0</span><span id="lgHi"></span></div>
+            <span>Signed distance to the CAD surface (blue: inside, red: outside)</span>
+          </div>
+          <div class="key" id="ovKey" hidden>
+            <span><i style="background: #3cdc3c"></i>Rendered 3D model</span><span><i style="background: #ff46d2"></i>Real object mask</span>
+          </div>
+          <dl id="facts"></dl>
+          <p class="note" id="snote" hidden></p>
+        </aside>
+      </div>
+    </div>
+
+    <script src="metrics.js"></script>
+    <script>
+      const VIEW = new URLSearchParams(location.search).get("view") === "results" ? "results" : "pipeline";
+      const M = window.THESIS_METRICS;
+      const CASEINFO = {
+        drill: { label: "moving camera · static object", src: "IndustryShapes dataset" },
+        dragon: { label: "static camera · moving object", src: "TUD-L dataset" },
+        car: { label: "camera and object both move", src: "drone footage" },
+      };
+      const pct = (x) => `${(x * 100).toFixed(1)} %`;
+
+      // Steps: each scene has a rail node index (`n`) and a duration in ms.
+      const PIPE = {
+        nodes: ["Input", "Reconstruction Pipeline"],
+        scenes: [
+          {
+            n: 0,
+            d: 7000,
+            k: "Input",
+            t: "RGB video and object masks",
+            hud: "INPUT · keyframes and masks",
+            text: "The only input is an ordinary RGB video of the object, plus a mask of the object in each frame. No CAD model and no depth sensor are needed.",
+          },
+          {
+            n: 1,
+            d: 6500,
+            k: "Reconstruction Pipeline · 1 / 4",
+            t: "Recovering the camera motion",
+            hud: "PIPELINE · camera motion",
+            text: "The pipeline works out where every view was taken from, relative to the object, together with a first sparse set of 3D points.",
+          },
+          {
+            n: 1,
+            d: 6500,
+            k: "Reconstruction Pipeline · 2 / 4",
+            t: "Geometry from every view",
+            hud: "PIPELINE · geometry per view",
+            text: "Each view contributes its own estimate of the object's shape (shown here as depth: near is red, far is blue).",
+          },
+          {
+            n: 1,
+            d: 7500,
+            k: "Reconstruction Pipeline · 3 / 4",
+            t: "Fusing the views into one model",
+            hud: "PIPELINE · fusion",
+            text: "All views are combined into one dense point cloud, which is turned into a surface mesh.",
+          },
+          {
+            n: 1,
+            d: 6500,
+            k: "Reconstruction Pipeline · 4 / 4",
+            t: "Two output meshes",
+            hud: "PIPELINE · final meshes",
+            text: "Two meshes come out: a surface mesh where every part is backed by observations, and a closed, smooth watertight mesh.",
+          },
+        ],
+      };
+      const RES = {
+        nodes: ["3D Model", "Accuracy vs. CAD", "Silhouette Check"],
+        scenes: [
+          {
+            n: 0,
+            d: 7000,
+            k: "Output · 3D model",
+            t: "Reconstructed meshes",
+            hud: "OUTPUT · meshes",
+            text: "The two meshes reconstructed from the RGB video alone, shown turning in place.",
+          },
+          {
+            n: 1,
+            d: 9000,
+            k: "Output · accuracy",
+            t: "Accuracy against the CAD model",
+            hud: "OUTPUT · error vs. CAD",
+            text: "Where a CAD model exists, the mesh is aligned to it and every surface point is coloured by its distance to the CAD surface.",
+          },
+          {
+            n: 2,
+            d: 9000,
+            k: "Output · silhouettes",
+            t: "Does the model match every view?",
+            hud: "OUTPUT · silhouette overlap",
+            text: "The 3D model is rendered back into each input view and compared with the real object mask. The overlap (IoU) is measured for every view.",
+          },
+        ],
+      };
+      const FLOW = VIEW === "results" ? RES : PIPE;
+      const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+      // ---------- theme: follow the embedding page (al-folio sets data-theme on <html>), else the OS
+      function applyTheme() {
+        let t = null;
+        try {
+          t = parent !== window && parent.document.documentElement.getAttribute("data-theme");
+        } catch (e) {}
+        if (!t) t = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+        document.documentElement.setAttribute("data-theme", t);
+      }
+      applyTheme();
+      try {
+        if (parent !== window)
+          new MutationObserver(applyTheme).observe(parent.document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+      } catch (e) {}
+      matchMedia("(prefers-color-scheme: dark)").addEventListener("change", applyTheme);
+
+      // ---------- report our height to the embedding page
+      function postHeight() {
+        if (parent !== window)
+          parent.postMessage({ thesisFrame: VIEW, h: Math.ceil(document.querySelector(".wrap").getBoundingClientRect().height) + 4 }, "*");
+      }
+      new ResizeObserver(postHeight).observe(document.querySelector(".wrap"));
+
+      // ---------- assets
+      const img = {},
+        data = {};
+      function load(src) {
+        if (!img[src]) {
+          const im = new Image();
+          im.src = src;
+          img[src] = im;
+        }
+        return img[src];
+      }
+      function preload(c) {
+        for (let k = 0; k < 12; k++) for (const p of ["f", "m", "c", "d"]) load(`${c}/${p}${k}.webp`);
+        for (const t of ["surface", "watertight"]) {
+          load(`${c}/${t}_turntable.webp`);
+          if (M[c].cad) load(`${c}/${t}_heat_turntable.webp`);
+          for (let k = 0; k < 6; k++) load(`${c}/${t}_ov${k}.webp`);
+        }
+        if (M[c].cad) load(`${c}/cad_turntable.webp`);
+        if (!data[c]) {
+          // a script tag also works from file://, where fetch() of local files is blocked
+          const sc = document.createElement("script");
+          sc.src = `${c}/data.js`;
+          sc.onload = () => {
+            data[c] = window.THESIS_DATA && window.THESIS_DATA[c];
+          };
+          document.head.appendChild(sc);
+        }
+      }
+
+      // ---------- state, rail and side panel
+      let caseKey = "drill",
+        scene = 0,
+        mesh = "surface",
+        t0 = performance.now(),
+        playing = !reduce,
+        pausedAt = 0;
+      try {
+        caseKey = localStorage.getItem("thesis-case") || caseKey;
+      } catch (e) {}
+      if (!M[caseKey]) caseKey = "drill";
+      const rail = document.getElementById("rail");
+      rail.style.gridTemplateColumns = `repeat(${FLOW.nodes.length}, minmax(0, 1fr))`;
+      FLOW.nodes.forEach((name, i) => {
+        const segs = FLOW.scenes.filter((s) => s.n === i).length;
+        const b = document.createElement("button");
+        b.className = "node";
+        b.innerHTML = `<span class="dot"></span><small>${name}</small><span class="bar">${"<i></i>".repeat(segs)}</span>`;
+        b.addEventListener("click", () => go(FLOW.scenes.findIndex((s) => s.n === i)));
+        rail.appendChild(b);
+      });
+      const nodes = [...rail.querySelectorAll(".node")];
+
+      function facts() {
+        const m = M[caseKey],
+          s = FLOW.scenes[scene],
+          mm = m.meshes[mesh],
+          info = CASEINFO[caseKey];
+        const row = (a, b, na) => `<div><dt>${a}</dt><dd${na ? ' class="na"' : ""}>${b}</dd></div>`;
+        if (VIEW === "pipeline") {
+          return [
+            row("Input frames", m.input_frames),
+            row("Motion setup", info.label),
+            row("Source", info.src),
+            row("Views in the final model", `${m.views} of ${m.input_frames}`),
+          ].join("");
+        }
+        const cad = m.cad;
+        return [
+          row("Chamfer distance", cad ? `${mm.chamfer.toFixed(2)} mm` : "n/a: no CAD", !cad),
+          row("F-score (τ = 2 % of size)", cad ? pct(mm.fscore2) : "n/a: no CAD", !cad),
+          row("Mean silhouette IoU", pct(mm.iou_mean)),
+          row("Views in the final model", `${m.views} of ${m.input_frames}`),
+        ].join("");
+      }
+      function renderPanel() {
+        const s = FLOW.scenes[scene],
+          m = M[caseKey];
+        document.getElementById("snum").textContent = s.k;
+        document.getElementById("stitle").textContent = s.t;
+        document.getElementById("stext").textContent = s.text;
+        document.getElementById("facts").innerHTML = facts();
+        document.getElementById("hudL").textContent = s.hud.toUpperCase();
+        document.getElementById("hudR").textContent =
+          VIEW === "results" ? (mesh === "surface" ? "surface mesh" : "watertight mesh") : CASEINFO[caseKey].label;
+        const showLegend = VIEW === "results" && s.n === 1 && m.cad;
+        document.getElementById("legend").hidden = !showLegend;
+        if (showLegend) {
+          const c = m.meshes[mesh].clip;
+          document.getElementById("lgLo").textContent = `−${c.toFixed(1)} mm`;
+          document.getElementById("lgHi").textContent = `+${c.toFixed(1)} mm`;
+        }
+        document.getElementById("ovKey").hidden = !(VIEW === "results" && s.n === 2);
+        document.getElementById("meshToggle").hidden = VIEW !== "results";
+        let note = "";
+        if (VIEW === "results" && !m.cad)
+          note =
+            "No CAD model exists for the car, so its geometric accuracy (Chamfer distance, F-score) cannot be measured. It is checked against the real object masks only.";
+        else if (caseKey === "dragon")
+          note = "The hardest setup: with a static camera and the object turned by hand, only 20 of the 60 views end up in the final model.";
+        const n = document.getElementById("snote");
+        n.textContent = note;
+        n.hidden = !note;
+        nodes.forEach((nd, i) => {
+          nd.classList.toggle("on", i === s.n);
+          nd.classList.toggle("done", i < s.n);
+          nd.setAttribute("aria-current", i === s.n ? "step" : "false");
+        });
+        postHeight();
+      }
+      function go(i) {
+        scene = (i + FLOW.scenes.length) % FLOW.scenes.length;
+        t0 = performance.now();
+        pausedAt = 0;
+        renderPanel();
+      }
+      function setCase(c, fromOther) {
+        caseKey = c;
+        preload(c);
+        document.querySelectorAll(".case").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.case === c)));
+        if (!fromOther) {
+          try {
+            localStorage.setItem("thesis-case", c);
+          } catch (e) {}
+        }
+        t0 = performance.now();
+        renderPanel();
+      }
+      addEventListener("storage", (e) => {
+        if (e.key === "thesis-case" && M[e.newValue] && e.newValue !== caseKey) setCase(e.newValue, true);
+      });
+      document.querySelectorAll(".case").forEach((b) => b.addEventListener("click", () => setCase(b.dataset.case)));
+      document.querySelectorAll("[data-mesh]").forEach((b) =>
+        b.addEventListener("click", () => {
+          mesh = b.dataset.mesh;
+          document.querySelectorAll("[data-mesh]").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+          renderPanel();
+        })
+      );
+      document.getElementById("prev").onclick = () => go(scene - 1);
+      document.getElementById("next").onclick = () => go(scene + 1);
+      const playBtn = document.getElementById("play");
+      playBtn.onclick = () => {
+        playing = !playing;
+        playBtn.textContent = playing ? "Pause" : "Play";
+        if (playing) t0 = performance.now() - pausedAt;
+        else pausedAt = performance.now() - t0;
+      };
+      playBtn.textContent = playing ? "Pause" : "Play";
+
+      // ---------- drawing helpers
+      const cv = document.getElementById("cv"),
+        ctx = cv.getContext("2d");
+      function fit() {
+        const r = cv.getBoundingClientRect(),
+          d = devicePixelRatio || 1;
+        if (cv.width !== Math.round(r.width * d) || cv.height !== Math.round(r.height * d)) {
+          cv.width = Math.round(r.width * d);
+          cv.height = Math.round(r.height * d);
+        }
+        ctx.setTransform(d, 0, 0, d, 0, 0);
+        return [r.width, r.height];
+      }
+      const ease = (x) => (x < 0 ? 0 : x > 1 ? 1 : x * x * (3 - 2 * x));
+      const ok = (im) => im && im.complete && im.naturalWidth;
+      function drawFit(im, x, y, w, h, a = 1) {
+        if (!ok(im)) return;
+        const s = Math.min(w / im.naturalWidth, h / im.naturalHeight),
+          iw = im.naturalWidth * s,
+          ih = im.naturalHeight * s;
+        ctx.globalAlpha = a;
+        ctx.drawImage(im, x + (w - iw) / 2, y + (h - ih) / 2, iw, ih);
+        ctx.globalAlpha = 1;
+      }
+      function label(txt, x, y, col = "#d3d8de", align = "left") {
+        ctx.font = "500 11.5px ui-monospace, Menlo, Consolas, monospace";
+        ctx.fillStyle = col;
+        ctx.textAlign = align;
+        ctx.fillText(txt, x, y);
+        ctx.textAlign = "left";
+      }
+      function project(p, yaw, W, H, scale) {
+        const pitch = 0.38,
+          cy = Math.cos(yaw),
+          sy = Math.sin(yaw),
+          cp = Math.cos(pitch),
+          sp = Math.sin(pitch);
+        const x = p[0] * cy - p[1] * sy,
+          y = p[0] * sy + p[1] * cy,
+          z = p[2];
+        const y2 = y * cp - z * sp,
+          z2 = y * sp + z * cp,
+          f = 4.2 / (4.2 + y2);
+        return [W / 2 + x * scale * f, H / 2 - z2 * scale * f];
+      }
+      function drawCloud(pts, cols, n, yaw, W, H, scale, size, alpha = 1) {
+        ctx.globalAlpha = alpha;
+        for (let i = 0; i < n; i++) {
+          const q = project(pts[i], yaw, W, H, scale),
+            c = cols[i];
+          ctx.fillStyle = `rgb(${c[0]},${c[1]},${c[2]})`;
+          ctx.fillRect(q[0] - size / 2, q[1] - size / 2, size, size);
+        }
+        ctx.globalAlpha = 1;
+      }
+      function drawCams(cams, n, yaw, W, H, scale) {
+        const o = project([0, 0, 0], yaw, W, H, scale);
+        let prev = null;
+        for (let i = 0; i < n; i++) {
+          const q = project(cams[i], yaw, W, H, scale);
+          if (prev) {
+            ctx.strokeStyle = "rgba(94,200,216,.4)";
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(prev[0], prev[1]);
+            ctx.lineTo(q[0], q[1]);
+            ctx.stroke();
+          }
+          const dx = o[0] - q[0],
+            dy = o[1] - q[1],
+            L = Math.hypot(dx, dy) || 1,
+            ux = dx / L,
+            uy = dy / L,
+            s = 7;
+          ctx.fillStyle = "#5ec8d8";
+          ctx.beginPath();
+          ctx.moveTo(q[0] + ux * s * 1.4, q[1] + uy * s * 1.4);
+          ctx.lineTo(q[0] - uy * s * 0.7, q[1] + ux * s * 0.7);
+          ctx.lineTo(q[0] + uy * s * 0.7, q[1] - ux * s * 0.7);
+          ctx.closePath();
+          ctx.fill();
+          prev = q;
+        }
+      }
+      function turntable(im, x, y, w, h, frame, a = 1) {
+        if (!ok(im)) return;
+        const f = ((frame % 24) + 24) % 24,
+          tw = im.naturalWidth / 6,
+          th = im.naturalHeight / 4,
+          s = Math.min(w / tw, h / th);
+        ctx.globalAlpha = a;
+        ctx.drawImage(im, (f % 6) * tw, Math.floor(f / 6) * th, tw, th, x + (w - tw * s) / 2, y + (h - th * s) / 2, tw * s, th * s);
+        ctx.globalAlpha = 1;
+      }
+      function divider(x, H) {
+        ctx.strokeStyle = "#2b313a";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(x, 40);
+        ctx.lineTo(x, H - 30);
+        ctx.stroke();
+      }
+
+      // ---------- scenes (u = 0..1 progress within the scene, T = seconds)
+      function drawPipeline(W, H, u, T) {
+        const c = caseKey,
+          d = data[c],
+          A = (p) => load(`${c}/${p}`);
+        if (scene === 0) {
+          // keyframe flipbook, masks fade in
+          const k = Math.floor(T * 2.2) % 12;
+          drawFit(A(`f${k}.webp`), 14, 36, W - 28, H - 72);
+          drawFit(A(`m${k}.webp`), 14, 36, W - 28, H - 72, ease((u - 0.35) / 0.25));
+          label(`frame ${k + 1} / 12 shown${u > 0.45 ? "  ·  object mask" : ""}`, 16, H - 14);
+        } else if (scene === 1) {
+          // camera path and sparse points
+          if (!d) return;
+          const yaw = T * 0.35,
+            sc = Math.min(W, H) * 0.24,
+            sp = d.sparse,
+            nCam = Math.floor(ease(u / 0.8) * sp.cams.length);
+          drawCloud(sp.p, sp.c, Math.floor(ease(u / 0.6) * sp.p.length), yaw, W, H, sc, 2.2);
+          drawCams(sp.cams, nCam, yaw, W, H, sc);
+          label(`${nCam} / ${sp.cams.length} camera views located`, 16, H - 14);
+        } else if (scene === 2) {
+          // object crop -> per-view depth
+          const cols = W > 520 ? 4 : 3,
+            gap = 10,
+            tw = (W - 28 - gap * (cols - 1)) / cols,
+            th = (H - 80 - gap) / 2,
+            sweep = ease((u - 0.15) / 0.6);
+          for (let i = 0; i < cols * 2; i++) {
+            const k = Math.round((i * 11) / (cols * 2 - 1)),
+              x = 14 + (i % cols) * (tw + gap),
+              y = 38 + Math.floor(i / cols) * (th + gap);
+            ctx.fillStyle = "#151a20";
+            ctx.fillRect(x, y, tw, th);
+            drawFit(A(`c${k}.webp`), x, y, tw, th);
+            ctx.save();
+            ctx.beginPath();
+            ctx.rect(x, y, tw * sweep, th);
+            ctx.clip();
+            drawFit(A(`d${k}.webp`), x, y, tw, th);
+            ctx.restore();
+            if (sweep > 0 && sweep < 1) {
+              ctx.fillStyle = "#ff4678";
+              ctx.fillRect(x + tw * sweep - 1, y, 2, th);
+            }
+          }
+          label("object  →  shape from each view (near red, far blue)", 16, H - 14);
+        } else if (scene === 3) {
+          // fused cloud grows, then the surface mesh
+          if (!d) return;
+          const yaw = T * 0.35,
+            sc = Math.min(W, H) * 0.32,
+            f = d.fused,
+            n = Math.floor(ease(u / 0.45) * f.p.length),
+            m = ease((u - 0.55) / 0.2);
+          drawCloud(f.p, f.c, n, yaw, W, H, sc, 1.7, 1 - m);
+          turntable(A("surface_turntable.webp"), 0, 28, W, H - 56, Math.round(yaw / (Math.PI / 12)), m);
+          label(m < 0.5 ? `dense point cloud: ${n.toLocaleString("en")} points shown` : "surface mesh", 16, H - 14);
+        } else {
+          // surface vs watertight mesh
+          const fr = Math.floor(T * 4),
+            half = W / 2;
+          turntable(A("surface_turntable.webp"), 0, 32, half, H - 64, fr);
+          turntable(A("watertight_turntable.webp"), half, 32, half, H - 64, fr, ease(u / 0.3));
+          divider(half, H);
+          label("surface mesh", 16, H - 14);
+          label("watertight mesh", half + 12, H - 14);
+        }
+      }
+      function drawResults(W, H, u, T) {
+        const c = caseKey,
+          m = M[c],
+          mm = m.meshes[mesh],
+          A = (p) => load(`${c}/${p}`),
+          s = FLOW.scenes[scene],
+          fr = Math.floor(T * 4);
+        if (s.n === 0) {
+          const half = W / 2;
+          turntable(A("surface_turntable.webp"), 0, 32, half, H - 64, fr);
+          turntable(A("watertight_turntable.webp"), half, 32, half, H - 64, fr);
+          divider(half, H);
+          label("surface mesh", 16, H - 14);
+          label("watertight mesh", half + 12, H - 14);
+        } else if (s.n === 1) {
+          const half = W / 2;
+          if (m.cad) {
+            turntable(A("cad_turntable.webp"), 0, 32, half, H - 64, fr);
+            turntable(A(`${mesh}_heat_turntable.webp`), half, 32, half, H - 64, fr, ease(u / 0.25));
+            divider(half, H);
+            label("CAD reference", 16, H - 14);
+            label(`${mesh} mesh, coloured by error`, half + 12, H - 14);
+            label(`Chamfer ${(mm.chamfer * ease((u - 0.15) / 0.5)).toFixed(2)} mm`, W - 16, 58, "#ffffff", "right");
+          } else {
+            turntable(A(`${mesh}_turntable.webp`), 0, 32, half, H - 64, fr);
+            ctx.setLineDash([6, 6]);
+            ctx.strokeStyle = "#5d6671";
+            ctx.strokeRect(half + 16, 48, half - 32, H - 96);
+            ctx.setLineDash([]);
+            label("No CAD model available", half + half / 2, H / 2 - 8, "#f0a24a", "center");
+            label("accuracy cannot be measured", half + half / 2, H / 2 + 12, "#98a0ab", "center");
+            divider(half, H);
+            label(`${mesh} mesh`, 16, H - 14);
+            label("CAD reference: none", half + 12, H - 14);
+          }
+        } else {
+          // overlays flipbook + per-view IoU bars
+          const k = Math.floor(T / 1.3) % 6,
+            chartH = Math.min(110, H * 0.26),
+            imgH = H - chartH - 78;
+          drawFit(A(`${mesh}_ov${k}.webp`), 14, 36, W - 28, imgH);
+          const iou = mm.iou,
+            n = iou.length,
+            x0 = 40,
+            x1 = W - 16,
+            y1 = H - 30,
+            y0 = y1 - chartH,
+            bw = (x1 - x0) / n,
+            shown = Math.ceil(ease(u / 0.7) * n);
+          ctx.strokeStyle = "#2b313a";
+          ctx.beginPath();
+          ctx.moveTo(x0, y0);
+          ctx.lineTo(x0, y1);
+          ctx.lineTo(x1, y1);
+          ctx.stroke();
+          for (let i = 0; i < shown; i++) {
+            const h = iou[i] * chartH;
+            ctx.fillStyle = iou[i] >= 0.85 ? "#69c48a" : iou[i] >= 0.6 ? "#f0a24a" : "#ff4678";
+            ctx.fillRect(x0 + i * bw + bw * 0.15, y1 - h, Math.max(1, bw * 0.7), h);
+          }
+          const ym = y1 - mm.iou_mean * chartH;
+          ctx.strokeStyle = "#ffffff";
+          ctx.setLineDash([4, 4]);
+          ctx.beginPath();
+          ctx.moveTo(x0, ym);
+          ctx.lineTo(x1, ym);
+          ctx.stroke();
+          ctx.setLineDash([]);
+          label("100%", 6, y0 + 4, "#98a0ab");
+          label("0%", 14, y1, "#98a0ab");
+          label(`IoU per view (${n} views) · mean ${pct(mm.iou_mean * ease(u / 0.7))}`, 16, H - 10);
+        }
+      }
+      function tick(now) {
+        const [W, H] = fit(),
+          s = FLOW.scenes[scene];
+        let el = playing ? now - t0 : pausedAt;
+        if (playing && el > s.d) {
+          go(scene + 1);
+          el = 0;
+        }
+        const u = reduce ? 1 : Math.min(el / s.d, 1);
+        nodes.forEach((nd, i) => {
+          const idx = FLOW.scenes.map((x, j) => j).filter((j) => FLOW.scenes[j].n === i);
+          nd.querySelectorAll(".bar i").forEach((bar, b) =>
+            bar.style.setProperty("--p", idx[b] < scene ? "100%" : idx[b] === scene ? `${u * 100}%` : "0%")
+          );
+        });
+        ctx.fillStyle = "#0b0d10";
+        ctx.fillRect(0, 0, W, H);
+        (VIEW === "results" ? drawResults : drawPipeline)(W, H, u, (reduce ? 0 : now) / 1000);
+        requestAnimationFrame(tick);
+      }
+      ["drill", "dragon", "car"].forEach(preload);
+      setCase(caseKey, true);
+      requestAnimationFrame(tick);
+    </script>
+  </body>
+</html>

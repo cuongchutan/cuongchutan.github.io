@@ -9,6 +9,4 @@ children:
     permalink: /youtube/
   - title: Travel & Photography
     permalink: /travel/
-  - title: Books & Films
-    permalink: /books-films/
 ---

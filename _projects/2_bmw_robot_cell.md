@@ -1,6 +1,6 @@
 ---
 layout: page
-title: Dual-Robot Pick-and-Place & Hand-Guided Cobot
+title: Robotic Pick-and-Place for Production
 description: Robotics Software Intern · BMW Group · 03/2025 – 08/2025
 importance: 2
 category: Work
@@ -8,14 +8,17 @@ category: Work
 
 **Where:** BMW Group, Munich, Germany — Robotics Software Intern
 
-**Hand-guided cobot interaction.** Developed hand-guided interaction for a UR cobot in C++, Python and ROS2, with velocity scaling and safety behavior for operators working near the robot.
+**Results.**
 
-**Dual-robot pick-and-place cell.** Built a KUKA/FANUC cell with MoveIt2:
+- Contributed to a **dual-robot pick-and-place cell** that handled **two full bins (~40 left/right parts) autonomously**.
+- Validated in simulation and on real industrial robots, and deployed with Docker.
 
-- Grasp-pose selection and part identification.
-- Behavior trees with grasp-loss recovery.
-- Collision-free motion planning for two robots in a shared workspace.
+**See the team's work.** BMW Group has published a video about its Center of Competence for Physical AI in Production, where my team worked:
 
-**Results.** Validated in RViz and on the real robots, and deployed with Docker. The cell handled **two full bins (~40 left/right parts) autonomously**.
+<a class="btn z-depth-1 mt-2" role="button" href="https://www.press.bmwgroup.com/global/video/detail/PF0010113/bmw-group-center-of-competence-for-physical-ai-in-production" target="_blank" rel="noopener">
+  <i class="fa-solid fa-play"></i> Watch: BMW Group Center of Competence for Physical AI in Production
+</a>
 
-**Stack:** ROS2 · MoveIt2 · C++ · Python · Behavior Trees · RViz · Docker · UR / KUKA / FANUC robots
+> The details of my work at BMW Group are confidential, so only results are shown here.
+
+**Tools:** ROS2 · MoveIt2 · C++ · Python · Docker
