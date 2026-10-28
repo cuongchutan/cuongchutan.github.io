@@ -1,0 +1,1028 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Motion Prediction Results</title>
+    <style>
+      /* Same tokens as the thesis animation; the viewport stays a dark "screen" in both themes. */
+      :root {
+        --bg: transparent;
+        --panel: #ffffff;
+        --line: rgba(0, 0, 0, 0.12);
+        --fg: #111111;
+        --muted: #6b6b6b;
+        --accent: #b509ac;
+        --warn: #b8691a;
+        --screen: #0b0d10;
+        --font: "Roboto", "Segoe UI", Helvetica, Arial, sans-serif;
+        --mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+        color-scheme: light;
+      }
+      :root[data-theme="dark"] {
+        --panel: #212529;
+        --line: #424246;
+        --fg: #e8e8e8;
+        --muted: #9a9a9a;
+        --accent: #2698ba;
+        --warn: #f0a24a;
+        color-scheme: dark;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        background: var(--bg);
+      }
+      body {
+        color: var(--fg);
+        font: 15px/1.55 var(--font);
+      }
+      [hidden] {
+        display: none !important;
+      }
+      .wrap {
+        display: grid;
+        gap: 16px;
+        padding: 4px 2px 8px;
+      }
+      .cases {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 8px;
+      }
+      .case {
+        all: unset;
+        cursor: pointer;
+        padding: 9px 12px;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: var(--panel);
+        min-width: 0;
+      }
+      .case:focus-visible,
+      .btn:focus-visible,
+      .node:focus-visible,
+      .chip:focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 2px;
+      }
+      .case[aria-pressed="true"] {
+        border-color: var(--accent);
+        box-shadow: inset 0 0 0 1px var(--accent);
+      }
+      .case b {
+        display: block;
+        font-weight: 600;
+        font-size: 14px;
+        line-height: 1.25;
+      }
+      .case span {
+        display: block;
+        font-size: 12.5px;
+        color: var(--muted);
+      }
+      .rail {
+        position: relative;
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 6px;
+        padding-top: 12px;
+      }
+      .rail::before {
+        content: "";
+        position: absolute;
+        left: 12%;
+        right: 12%;
+        top: 19px;
+        height: 2px;
+        background: var(--line);
+      }
+      .node {
+        all: unset;
+        cursor: pointer;
+        position: relative;
+        display: grid;
+        justify-items: center;
+        gap: 5px;
+        text-align: center;
+        min-width: 0;
+      }
+      .dot {
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        background: var(--panel);
+        border: 2px solid var(--line);
+        z-index: 1;
+      }
+      .node.done .dot {
+        border-color: var(--accent);
+        background: color-mix(in srgb, var(--accent) 35%, var(--panel));
+      }
+      .node.on .dot {
+        border-color: var(--accent);
+        background: var(--accent);
+      }
+      .node small {
+        font: 600 11px/1 var(--mono);
+        letter-spacing: 0.08em;
+        color: var(--muted);
+        text-transform: uppercase;
+      }
+      .node.on small {
+        color: var(--fg);
+      }
+      .bar {
+        display: block;
+        height: 3px;
+        width: 70%;
+        background: var(--line);
+        border-radius: 2px;
+        position: relative;
+        overflow: hidden;
+      }
+      .bar::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        width: var(--p, 0%);
+        background: var(--accent);
+      }
+      .view {
+        position: relative;
+        aspect-ratio: 16 / 10;
+        background: var(--screen);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        overflow: hidden;
+      }
+      .view canvas {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+      }
+      .hud {
+        position: absolute;
+        left: 10px;
+        top: 9px;
+        right: 10px;
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+        font: 500 11.5px/1.3 var(--mono);
+        color: #d3d8de;
+        pointer-events: none;
+      }
+      .hud span {
+        background: rgba(10, 12, 15, 0.72);
+        padding: 4px 8px;
+        border-radius: 6px;
+      }
+      .controls {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        margin-top: 10px;
+        flex-wrap: wrap;
+      }
+      .btn {
+        all: unset;
+        cursor: pointer;
+        font-size: 13px;
+        line-height: 1;
+        padding: 8px 12px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--panel);
+      }
+      .chips {
+        display: flex;
+        justify-content: center;
+        flex-wrap: wrap;
+        gap: 6px 8px;
+        margin-top: 10px;
+      }
+      .chip {
+        all: unset;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 12.5px;
+        padding: 4px 10px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        background: var(--panel);
+      }
+      .chip i {
+        width: 14px;
+        height: 4px;
+        border-radius: 2px;
+        box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.25);
+      }
+      .chip[aria-pressed="false"] {
+        opacity: 0.45;
+      }
+      .chip.static {
+        cursor: default;
+      }
+      .info {
+        display: grid;
+        gap: 12px;
+        min-width: 0;
+      }
+      .info .num {
+        font: 600 12px/1 var(--mono);
+        color: var(--accent);
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+      }
+      .info h3 {
+        font-size: 22px;
+        line-height: 1.2;
+        font-weight: 500;
+        margin: 0;
+      }
+      .info p {
+        margin: 0;
+        color: var(--muted);
+      }
+      .tables {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px 24px;
+      }
+      .tables h4 {
+        margin: 0 0 4px;
+        font: 600 11px/1.4 var(--mono);
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+      dl {
+        margin: 0;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        border-top: 1px solid var(--line);
+      }
+      dl div {
+        display: contents;
+      }
+      dt,
+      dd {
+        padding: 8px 0;
+        border-bottom: 1px solid var(--line);
+      }
+      dt {
+        color: var(--muted);
+        font-size: 13.5px;
+        padding-right: 12px;
+      }
+      dd {
+        margin: 0;
+        font: 600 14px/1.4 var(--mono);
+        font-variant-numeric: tabular-nums;
+        text-align: right;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13.5px;
+      }
+      th,
+      td {
+        padding: 7px 0;
+        border-bottom: 1px solid var(--line);
+        text-align: right;
+      }
+      th {
+        font-weight: 400;
+        color: var(--muted);
+      }
+      th:first-child,
+      td:first-child {
+        text-align: left;
+      }
+      td {
+        font: 600 14px/1.4 var(--mono);
+        font-variant-numeric: tabular-nums;
+      }
+      td:first-child {
+        font: 400 13.5px/1.4 var(--font);
+      }
+      th + th,
+      td + td {
+        padding-left: 14px;
+      }
+      tr.me td {
+        color: var(--accent);
+      }
+      thead tr {
+        border-top: 1px solid var(--line);
+      }
+      .note {
+        font-size: 13px;
+        color: var(--muted);
+        border-left: 3px solid var(--warn);
+        padding-left: 10px;
+      }
+      .tables.one {
+        grid-template-columns: 1fr;
+      }
+      @media (max-width: 560px) {
+        .view {
+          aspect-ratio: 1 / 1;
+        }
+        #hudR {
+          display: none;
+        }
+      }
+      @media (max-width: 760px) {
+        .tables,
+        .cases {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="cases" role="group" aria-label="Example scene"></div>
+
+      <nav class="rail" id="rail" aria-label="Steps"></nav>
+
+      <div>
+        <div class="view">
+          <canvas id="cv" aria-label="Animation of the current step"></canvas>
+          <div class="hud"><span id="hudL"></span><span id="hudR"></span></div>
+        </div>
+        <div class="chips" id="chips"></div>
+        <div class="controls">
+          <button class="btn" id="play">Pause</button>
+          <button class="btn" id="prev">Previous</button>
+          <button class="btn" id="next">Next</button>
+        </div>
+      </div>
+
+      <div class="info">
+        <div class="num" id="snum"></div>
+        <h3 id="stitle"></h3>
+        <p id="stext"></p>
+        <div class="tables">
+          <div id="sceneBox">
+            <h4>Scene</h4>
+            <dl id="facts"></dl>
+          </div>
+          <div>
+            <h4 id="tblHead"></h4>
+            <table id="tbl"></table>
+          </div>
+        </div>
+        <p class="note" id="snote" hidden></p>
+      </div>
+    </div>
+
+    <script src="data.js"></script>
+    <script>
+      const D = window.MDP_DATA;
+      const FRAME = "mdp";
+      const DT = 0.4; // seconds between dataset samples (100 Hz downsampled to 2.5 Hz)
+      const COL = {
+        GT: "#69c48a",
+        CVM: "#8d96a3",
+        "CVM-CC": "#c8a874",
+        SoF: "#4ea1ff",
+        "JS-MDP": "#f0a24a",
+        "PR-MDP": "#ff5ad9",
+        EnF: "#a98bff",
+      };
+      const MODELS = ["CVM", "CVM-CC", "SoF", "JS-MDP", "PR-MDP"];
+      const NAMES = {
+        CVM: "Constant velocity (CVM)",
+        "CVM-CC": "CVM + collision check",
+        SoF: "Social force (SoF)",
+        EnF: "Environmental forces (EnF)",
+        "JS-MDP": "JS-MDP (Rudenko et al.)",
+        "PR-MDP": "PR-MDP (mine)",
+      };
+      // Whole-benchmark results from the final report (Table 2 and Figure 14)
+      const BENCH = {
+        order: ["CVM", "CVM-CC", "SoF", "EnF", "JS-MDP", "PR-MDP"],
+        thor1: {
+          ade: [0.595, 0.5, 0.536, 0.479, 0.512, 0.483],
+          fde: [1.37, 1.096, 1.12, 1.054, 1.089, 1.054],
+          t: [0.00013, 0.0035, 0.0131, 0.015, 3.9204, 3.8103],
+        },
+        thor3: {
+          ade: [0.68, 0.592, 0.649, 0.556, 0.612, 0.565],
+          fde: [1.558, 1.306, 1.34, 1.202, 1.265, 1.207],
+          t: [0.00012, 0.0033, 0.0112, 0.0137, 3.7653, 3.7923],
+        },
+      };
+      const CASES = {
+        "thor1-150": { b: "Layout 1 · one walker", s: "Turns towards a goal and slows down" },
+        "thor3-200": { b: "Layout 3 · five people", s: "A group of three walks together" },
+        "thor3-250": { b: "Layout 3 · four people", s: "Walkers pass a standing person" },
+      };
+      const MAPNAME = { thor1: "THÖR layout 1", thor3: "THÖR layout 3 (extra obstacles)" };
+      const FLOW = [
+        {
+          d: 6000,
+          node: "Observation",
+          t: "What the robot has seen so far",
+          hud: "OBSERVATION · 8 steps = 3.2 s",
+          text: "People walking in a lab room, tracked by motion capture (THÖR dataset). The model only gets the last 3.2 s of each person's track, the map with its obstacles, and the possible goals (G1–G6).",
+        },
+        {
+          d: 9000,
+          node: "Goal & Plan",
+          t: "Where are they going, and how?",
+          hud: "PLANNING · value map of the likely goal",
+          text: "Each person is matched to the goal that fits their heading. A Markov decision process then plans over the whole map: brighter cells are 'closer' to the goal along walkable paths, and the arrows show the step a person would take from each cell.",
+        },
+        {
+          d: 9000,
+          node: "Prediction",
+          t: "4.8 s into the future",
+          hud: "PREDICTION · 12 steps = 4.8 s",
+          text: "Every model predicts the next 12 steps for all people at once, and is compared with where they actually walked (green). My model (PR-MDP) adds social forces between people, slows down near the goal and blends the observed motion into the plan gradually.",
+        },
+        {
+          d: 10000,
+          node: "Benchmark",
+          t: "Across the whole dataset",
+          hud: "BENCHMARK · all scenes of both layouts",
+          text: "Average displacement error over all 636 + 614 scenes of the two layouts, and the time each model needs per scene. PR-MDP cuts the error by up to 19 % compared with constant velocity and by up to 8 % compared with JS-MDP, but planning over the whole map takes about 3.8 s per scene, against milliseconds for the physics-based models.",
+        },
+      ];
+      const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+      // ---------- theme: follow the embedding page (al-folio sets data-theme on <html>), else the OS
+      function applyTheme() {
+        let t = null;
+        try {
+          t = parent !== window && parent.document.documentElement.getAttribute("data-theme");
+        } catch (e) {}
+        if (!t) t = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+        document.documentElement.setAttribute("data-theme", t);
+      }
+      applyTheme();
+      try {
+        if (parent !== window)
+          new MutationObserver(applyTheme).observe(parent.document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+      } catch (e) {}
+      matchMedia("(prefers-color-scheme: dark)").addEventListener("change", applyTheme);
+
+      function postHeight() {
+        if (parent !== window)
+          parent.postMessage({ thesisFrame: FRAME, h: Math.ceil(document.querySelector(".wrap").getBoundingClientRect().height) + 4 }, "*");
+      }
+      new ResizeObserver(postHeight).observe(document.querySelector(".wrap"));
+
+      // ---------- decode maps and value fields into offscreen canvases (row 0 = highest y)
+      const unb64 = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
+      const maps = {};
+      for (const [k, m] of Object.entries(D.maps)) {
+        const [ni, nj] = m.shape,
+          bits = unb64(m.occ),
+          free = new Uint8Array(ni * nj);
+        for (let p = 0; p < ni * nj; p++) free[p] = (bits[p >> 3] >> (7 - (p & 7))) & 1 ? 0 : 1;
+        const c = document.createElement("canvas");
+        c.width = ni;
+        c.height = nj;
+        const g = c.getContext("2d"),
+          im = g.createImageData(ni, nj);
+        for (let i = 0; i < ni; i++)
+          for (let j = 0; j < nj; j++) {
+            const o = ((nj - 1 - j) * ni + i) * 4;
+            if (free[i * nj + j]) [im.data[o], im.data[o + 1], im.data[o + 2], im.data[o + 3]] = [30, 36, 45, 255];
+          }
+        g.putImageData(im, 0, 0);
+        maps[k] = { ni, nj, free, img: c, box: null };
+      }
+      // viridis-like ramp for the value map
+      const RAMP = [
+        [68, 1, 84],
+        [59, 82, 139],
+        [33, 145, 140],
+        [94, 201, 98],
+        [253, 231, 37],
+      ];
+      function ramp(x) {
+        const f = Math.min(0.9999, Math.max(0, x)) * (RAMP.length - 1),
+          i = Math.floor(f),
+          t = f - i;
+        return RAMP[i].map((a, k) => a + (RAMP[i + 1][k] - a) * t);
+      }
+      const fields = {};
+      for (const [k, f] of Object.entries(D.fields)) {
+        const m = maps[k.split("-")[0]],
+          v = unb64(f.v),
+          c = document.createElement("canvas");
+        c.width = m.ni;
+        c.height = m.nj;
+        fields[k] = { v, c, g: c.getContext("2d"), im: c.getContext("2d").createImageData(m.ni, m.nj), last: -1, policy: f.policy };
+      }
+      function paintField(F, m, thr) {
+        // reveal cells whose value is above the threshold: the field grows outward from the goal
+        const q = Math.round(thr * 255);
+        if (q === F.last) return;
+        F.last = q;
+        const d = F.im.data;
+        for (let i = 0; i < m.ni; i++)
+          for (let j = 0; j < m.nj; j++) {
+            const val = F.v[i * m.nj + j],
+              o = ((m.nj - 1 - j) * m.ni + i) * 4;
+            if (val && val >= 255 - q) {
+              const c = ramp(Math.pow(val / 255, 2.2));
+              d[o] = c[0];
+              d[o + 1] = c[1];
+              d[o + 2] = c[2];
+              d[o + 3] = 235;
+            } else d[o + 3] = 0;
+          }
+        F.g.putImageData(F.im, 0, 0);
+      }
+
+      // ---------- view transform: rotate the room by 45° so its long side is horizontal
+      const ROT = -Math.PI / 4,
+        CR = Math.cos(ROT),
+        SR = Math.sin(ROT);
+      const rot = (x, y) => [x * CR - y * SR, x * SR + y * CR];
+      function box(m) {
+        if (m.box) return m.box;
+        let a = [1e9, 1e9, -1e9, -1e9];
+        for (let i = 0; i < m.ni; i++)
+          for (let j = 0; j < m.nj; j++)
+            if (m.free[i * m.nj + j]) {
+              const [u, v] = rot(D.origin[0] + D.res * i, D.origin[1] + D.res * j);
+              a = [Math.min(a[0], u), Math.min(a[1], v), Math.max(a[2], u), Math.max(a[3], v)];
+            }
+        return (m.box = a);
+      }
+      let VT = null;
+      function setView(m, W, H) {
+        const [u0, v0, u1, v1] = box(m),
+          pad = 18,
+          top = 36,
+          bot = 28,
+          s = Math.min((W - 2 * pad) / (u1 - u0), (H - top - bot) / (v1 - v0));
+        const ox = (W - s * (u1 - u0)) / 2 - s * u0,
+          oy = top + (H - top - bot - s * (v1 - v0)) / 2 + s * v1;
+        VT = { s, ox, oy };
+      }
+      function P(x, y) {
+        const [u, v] = rot(x, y);
+        return [VT.ox + VT.s * u, VT.oy - VT.s * v];
+      }
+      function drawGrid(img, m, alpha = 1) {
+        // map pixel (col, row) -> world (origin + res*col, origin + res*(nj-1-row)); cells are centred on samples
+        const d = devicePixelRatio || 1;
+        ctx.save();
+        ctx.globalAlpha = alpha;
+        ctx.imageSmoothingEnabled = false;
+        // screen = T(ox,oy) · S(s,-s) · R(ROT) · world
+        ctx.setTransform(d * VT.s * CR, -d * VT.s * SR, -d * VT.s * SR, -d * VT.s * CR, d * VT.ox, d * VT.oy);
+        ctx.translate(D.origin[0] - D.res / 2, D.origin[1] + D.res * (m.nj - 0.5));
+        ctx.scale(D.res, -D.res);
+        ctx.drawImage(img, 0, 0);
+        ctx.restore();
+      }
+
+      // ---------- state, rail, chips and info panel
+      let sc = 0,
+        step = 0,
+        t0 = performance.now(),
+        playing = !reduce,
+        pausedAt = 0;
+      const shown = Object.fromEntries(MODELS.map((k) => [k, true]));
+      try {
+        const saved = localStorage.getItem("mdp-scene");
+        const i = D.scenes.findIndex((s) => s.id === saved);
+        if (i >= 0) sc = i;
+      } catch (e) {}
+      const casesEl = document.querySelector(".cases");
+      D.scenes.forEach((s, i) => {
+        const b = document.createElement("button");
+        b.className = "case";
+        b.innerHTML = `<b>${CASES[s.id].b}</b><span>${CASES[s.id].s}</span>`;
+        b.addEventListener("click", () => setScene(i));
+        casesEl.appendChild(b);
+      });
+      const rail = document.getElementById("rail");
+      FLOW.forEach((f, i) => {
+        const b = document.createElement("button");
+        b.className = "node";
+        b.innerHTML = `<span class="dot"></span><small>${f.node}</small><span class="bar"></span>`;
+        b.addEventListener("click", () => go(i));
+        rail.appendChild(b);
+      });
+      const nodes = [...rail.querySelectorAll(".node")];
+      const chipsEl = document.getElementById("chips");
+
+      function renderChips() {
+        let h = "";
+        if (step === 0 || step === 1)
+          h = `<span class="chip static"><i style="background:#ffffff"></i>Observed track</span><span class="chip static"><i style="background:#ffd166"></i>Possible goals</span>`;
+        if (step === 2) {
+          h = `<span class="chip static"><i style="background:${COL.GT}"></i>Actual path</span>`;
+          h += MODELS.map(
+            (k) => `<button class="chip" data-m="${k}" aria-pressed="${shown[k]}"><i style="background:${COL[k]}"></i>${k}</button>`
+          ).join("");
+        }
+        if (step === 3)
+          h = `<span class="chip static"><i style="background:#5d6671"></i>Layout 1</span><span class="chip static"><i style="background:#9aa4b1"></i>Layout 3</span>`;
+        chipsEl.innerHTML = h;
+        chipsEl.querySelectorAll("[data-m]").forEach((b) =>
+          b.addEventListener("click", () => {
+            shown[b.dataset.m] = !shown[b.dataset.m];
+            b.setAttribute("aria-pressed", String(shown[b.dataset.m]));
+          })
+        );
+      }
+      function renderPanel() {
+        const f = FLOW[step],
+          S = D.scenes[sc],
+          ped = S.peds[S.focus];
+        document.getElementById("snum").textContent = `Step ${step + 1} / ${FLOW.length} · ${f.node}`;
+        document.getElementById("stitle").textContent = f.t;
+        document.getElementById("stext").textContent = f.text;
+        document.getElementById("hudL").textContent = f.hud;
+        document.getElementById("hudR").textContent = step === 3 ? "THÖR · both layouts" : `${MAPNAME[S.map]} · scene ${S.scene}`;
+        const row = (a, b) => `<div><dt>${a}</dt><dd>${b}</dd></div>`;
+        document.getElementById("facts").innerHTML = [
+          row("Map", MAPNAME[S.map]),
+          row("People in the scene", S.peds.length),
+          row("Observed → predicted", `${(8 * DT).toFixed(1)} s → ${(12 * DT).toFixed(1)} s`),
+          row("Likely goal (highlighted person)", `G${ped.goal + 1}`),
+        ].join("");
+        const tbl = document.getElementById("tbl");
+        if (step < 3) {
+          document.getElementById("tblHead").textContent = "Error in this scene, in m (lower is better)";
+          tbl.innerHTML =
+            "<thead><tr><th>Model</th><th>ADE</th><th>FDE</th></tr></thead><tbody>" +
+            MODELS.map(
+              (k) =>
+                `<tr${k === "PR-MDP" ? ' class="me"' : ""}><td>${NAMES[k]}</td><td>${S.models[k].ade.toFixed(2)}</td><td>${S.models[k].fde.toFixed(2)}</td></tr>`
+            ).join("") +
+            "</tbody>";
+        } else {
+          const B = BENCH;
+          document.getElementById("tblHead").textContent = "Whole benchmark: ADE / FDE in m";
+          tbl.innerHTML =
+            "<thead><tr><th>Model</th><th>Layout 1</th><th>Layout 3</th></tr></thead><tbody>" +
+            B.order
+              .map(
+                (k, i) =>
+                  `<tr${k === "PR-MDP" ? ' class="me"' : ""}><td>${NAMES[k]}</td><td>${B.thor1.ade[i].toFixed(3)} / ${B.thor1.fde[i].toFixed(3)}</td><td>${B.thor3.ade[i].toFixed(3)} / ${B.thor3.fde[i].toFixed(3)}</td></tr>`
+              )
+              .join("") +
+            "</tbody>";
+        }
+        let note = "";
+        if (step < 3) note = "One example scene. Single scenes vary a lot; the benchmark step shows the averages over the whole dataset.";
+        else
+          note =
+            "The environmental-forces model (EnF) is slightly more accurate on average and much faster. It ran on different hardware and could not be re-run for the example scenes, so it appears only here.";
+        const n = document.getElementById("snote");
+        n.textContent = note;
+        n.hidden = !note;
+        document.getElementById("sceneBox").hidden = step === 3;
+        document.querySelector(".tables").classList.toggle("one", step === 3);
+        casesEl.querySelectorAll(".case").forEach((b, i) => b.setAttribute("aria-pressed", String(i === sc)));
+        nodes.forEach((nd, i) => {
+          nd.classList.toggle("on", i === step);
+          nd.classList.toggle("done", i < step);
+          nd.setAttribute("aria-current", i === step ? "step" : "false");
+        });
+        renderChips();
+        postHeight();
+      }
+      function go(i) {
+        step = (i + FLOW.length) % FLOW.length;
+        t0 = performance.now();
+        pausedAt = 0;
+        renderPanel();
+      }
+      function setScene(i) {
+        sc = i;
+        try {
+          localStorage.setItem("mdp-scene", D.scenes[i].id);
+        } catch (e) {}
+        go(step === 3 ? 0 : step);
+      }
+      document.getElementById("prev").onclick = () => go(step - 1);
+      document.getElementById("next").onclick = () => go(step + 1);
+      const playBtn = document.getElementById("play");
+      playBtn.onclick = () => {
+        playing = !playing;
+        playBtn.textContent = playing ? "Pause" : "Play";
+        if (playing) t0 = performance.now() - pausedAt;
+        else pausedAt = performance.now() - t0;
+      };
+      playBtn.textContent = playing ? "Pause" : "Play";
+
+      // ---------- drawing helpers
+      const cv = document.getElementById("cv"),
+        ctx = cv.getContext("2d");
+      function fit() {
+        const r = cv.getBoundingClientRect(),
+          d = devicePixelRatio || 1;
+        if (cv.width !== Math.round(r.width * d) || cv.height !== Math.round(r.height * d)) {
+          cv.width = Math.round(r.width * d);
+          cv.height = Math.round(r.height * d);
+        }
+        ctx.setTransform(d, 0, 0, d, 0, 0);
+        return [r.width, r.height];
+      }
+      const ease = (x) => (x < 0 ? 0 : x > 1 ? 1 : x * x * (3 - 2 * x));
+      const clamp = (x) => (x < 0 ? 0 : x > 1 ? 1 : x);
+      function label(txt, x, y, col = "#d3d8de", align = "left", font = "500 11.5px ui-monospace, Menlo, Consolas, monospace") {
+        ctx.font = font;
+        ctx.fillStyle = col;
+        ctx.textAlign = align;
+        ctx.fillText(txt, x, y);
+        ctx.textAlign = "left";
+      }
+      function path(pts, n, col, w, dash) {
+        // polyline through the first n points (n may be fractional)
+        if (n <= 0 || !pts.length) return;
+        ctx.strokeStyle = col;
+        ctx.lineWidth = w;
+        ctx.lineJoin = ctx.lineCap = "round";
+        ctx.setLineDash(dash || []);
+        ctx.beginPath();
+        let last = null;
+        for (let k = 0; k < Math.ceil(n) && k < pts.length; k++) {
+          let p = pts[k];
+          if (k === Math.ceil(n) - 1 && n % 1 && k > 0) {
+            const a = pts[k - 1],
+              f = n % 1;
+            p = [a[0] + (p[0] - a[0]) * f, a[1] + (p[1] - a[1]) * f];
+          }
+          const q = P(p[0], p[1]);
+          k ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1]);
+          last = q;
+        }
+        ctx.stroke();
+        ctx.setLineDash([]);
+        return last;
+      }
+      function dots(pts, n, col, r) {
+        ctx.fillStyle = col;
+        for (let k = 0; k < Math.min(n, pts.length); k++) {
+          const q = P(pts[k][0], pts[k][1]);
+          ctx.beginPath();
+          ctx.arc(q[0], q[1], r, 0, 7);
+          ctx.fill();
+        }
+      }
+      function head(pts, col, r) {
+        const q = P(pts[pts.length - 1][0], pts[pts.length - 1][1]);
+        ctx.fillStyle = col;
+        ctx.beginPath();
+        ctx.arc(q[0], q[1], r, 0, 7);
+        ctx.fill();
+        return q;
+      }
+      function goals(hi, a = 1) {
+        D.goals.forEach((g, i) => {
+          const q = P(g[0], g[1]),
+            on = i === hi;
+          ctx.globalAlpha = a * (hi == null || on ? 1 : 0.45);
+          ctx.strokeStyle = "#ffd166";
+          ctx.lineWidth = on ? 2.5 : 1.5;
+          ctx.beginPath();
+          ctx.arc(q[0], q[1], on ? 9 : 7, 0, 7);
+          ctx.stroke();
+          label(`G${i + 1}`, q[0], q[1] - 13, "#ffd166", "center", "600 11px ui-monospace, Menlo, Consolas, monospace");
+          ctx.globalAlpha = 1;
+        });
+      }
+      function arrow(x, y, dx, dy, col, w, hs) {
+        const L = Math.hypot(dx, dy) || 1,
+          ux = dx / L,
+          uy = dy / L;
+        ctx.strokeStyle = ctx.fillStyle = col;
+        ctx.lineWidth = w;
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.lineTo(x + dx, y + dy);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(x + dx + ux * hs, y + dy + uy * hs);
+        ctx.lineTo(x + dx - uy * hs * 0.6, y + dy + ux * hs * 0.6);
+        ctx.lineTo(x + dx + uy * hs * 0.6, y + dy - ux * hs * 0.6);
+        ctx.closePath();
+        ctx.fill();
+      }
+
+      // ---------- scenes (u = 0..1 progress within the step, T = seconds)
+      function drawScene(W, H, u, T) {
+        const S = D.scenes[sc],
+          m = maps[S.map],
+          F = fields[S.field],
+          focus = S.peds[S.focus];
+        setView(m, W, H);
+        drawGrid(m.img, m);
+        if (step === 0) {
+          goals(null, ease(u / 0.2));
+          const n = 1 + ease((u - 0.1) / 0.6) * 7;
+          S.peds.forEach((p) => {
+            path(p.obs, n, "rgba(255,255,255,.55)", 2);
+            dots(p.obs, Math.floor(n), "#ffffff", 2.2);
+          });
+          const a = ease((u - 0.75) / 0.15);
+          if (a > 0)
+            S.peds.forEach((p) => {
+              const o = p.obs,
+                q = P(o[7][0], o[7][1]),
+                r = P(o[7][0] + (o[7][0] - o[6][0]) * 2.5, o[7][1] + (o[7][1] - o[6][1]) * 2.5);
+              ctx.globalAlpha = a;
+              arrow(q[0], q[1], r[0] - q[0], r[1] - q[1], "#ffffff", 1.5, 6);
+              ctx.globalAlpha = 1;
+            });
+          label(`observed ${Math.floor(n)} / 8 steps · ${S.peds.length} ${S.peds.length > 1 ? "people" : "person"}`, 16, H - 12);
+        } else if (step === 1) {
+          // goal inference, then the value map grows from the goal, then the policy arrows
+          const g = focus.goal,
+            last = focus.obs[7],
+            q = P(last[0], last[1]),
+            a1 = ease(u / 0.15),
+            a2 = ease((u - 0.2) / 0.1);
+          paintField(F, m, ease((u - 0.25) / 0.45));
+          drawGrid(F.c, m, 0.95);
+          const pa = ease((u - 0.72) / 0.15);
+          if (pa > 0) {
+            ctx.globalAlpha = pa * 0.75;
+            for (const [i, j, di, dj] of F.policy) {
+              const x = D.origin[0] + D.res * i,
+                y = D.origin[1] + D.res * j,
+                s = P(x, y),
+                L = Math.hypot(di, dj) || 1,
+                e = P(x + (di / L) * 0.35, y + (dj / L) * 0.35);
+              arrow(s[0], s[1], e[0] - s[0], e[1] - s[1], "#ffffff", 1, 3);
+            }
+            ctx.globalAlpha = 1;
+          }
+          D.goals.forEach((gg, i) => {
+            const r = P(gg[0], gg[1]);
+            ctx.globalAlpha = a1 * (i === g ? 1 : 1 - a2 * 0.8) * (1 - ease((u - 0.25) / 0.1) * (i === g ? 0 : 1));
+            ctx.strokeStyle = "#ffd166";
+            ctx.setLineDash([4, 5]);
+            ctx.lineWidth = i === g ? 2 : 1;
+            ctx.beginPath();
+            ctx.moveTo(q[0], q[1]);
+            ctx.lineTo(r[0], r[1]);
+            ctx.stroke();
+            ctx.setLineDash([]);
+            ctx.globalAlpha = 1;
+          });
+          goals(a2 > 0 ? g : null);
+          S.peds.forEach((p, k) => {
+            path(p.obs, 8, k === S.focus ? "#ffffff" : "rgba(255,255,255,.35)", k === S.focus ? 2.4 : 1.6);
+            head(p.obs, k === S.focus ? "#ffffff" : "rgba(255,255,255,.5)", k === S.focus ? 4 : 2.6);
+          });
+          label(
+            u < 0.25
+              ? "matching the heading to a goal"
+              : u < 0.72
+                ? `value map for goal G${g + 1} (brighter = closer along walkable paths)`
+                : "policy: the step taken from each cell",
+            16,
+            H - 12
+          );
+        } else {
+          // predictions vs. ground truth, one step every ~0.5 s
+          paintField(F, m, 1);
+          drawGrid(F.c, m, 0.18);
+          goals(null, 0.6);
+          const n = ease(u / 0.85) * 12;
+          S.peds.forEach((p) => {
+            path(p.obs, 8, "rgba(255,255,255,.45)", 1.6);
+            const conn = (tr) => [p.obs[7]].concat(tr);
+            path(conn(p.gt), 1 + n, COL.GT, 3);
+            for (const k of MODELS) {
+              if (!shown[k]) continue;
+              const tr = S.models[k].traj[S.peds.indexOf(p)];
+              path(conn(tr), 1 + n, COL[k], k === "PR-MDP" ? 3 : 1.8, k === "PR-MDP" ? null : [5, 4]);
+            }
+            head(p.obs, "#ffffff", 3);
+          });
+          const t = (n * DT).toFixed(1);
+          label(`t = +${t} s`, 16, H - 12);
+          if (shown["PR-MDP"]) label(`PR-MDP ADE ${S.models["PR-MDP"].ade.toFixed(2)} m`, W - 16, H - 12, COL["PR-MDP"], "right");
+        }
+      }
+      function drawBench(W, H, u) {
+        const B = BENCH,
+          k = B.order.length,
+          wide = W >= 560,
+          g = ease(u / 0.6),
+          gt = ease((u - 0.45) / 0.4);
+        // panel 1: ADE per model, two bars (layout 1, layout 3)
+        const A = wide ? { x: 120, y: 66, w: W * 0.56 - 140, h: H - 110 } : { x: 70, y: 62, w: W - 110, h: (H - 130) * 0.55 };
+        const T = wide ? { x: W * 0.56 + 92, y: 66, w: W * 0.44 - 112, h: H - 110 } : { x: 70, y: A.y + A.h + 40, w: W - 110, h: (H - 130) * 0.45 };
+        const max = 0.7,
+          rowH = A.h / k;
+        label("Average displacement error (m)", A.x, A.y - 10, "#98a0ab");
+        B.order.forEach((name, i) => {
+          const y = A.y + i * rowH,
+            me = name === "PR-MDP";
+          label(
+            name,
+            A.x - 10,
+            y + rowH / 2 + 4,
+            me ? COL["PR-MDP"] : "#d3d8de",
+            "right",
+            `${me ? 700 : 500} 12px ui-monospace, Menlo, Consolas, monospace`
+          );
+          [B.thor1.ade[i], B.thor3.ade[i]].forEach((v, j) => {
+            const bh = rowH * 0.32,
+              by = y + rowH * 0.14 + j * (bh + 3),
+              bw = (v / max) * A.w * g;
+            ctx.fillStyle = me ? (j ? "#c94cb0" : COL["PR-MDP"]) : j ? "#9aa4b1" : "#5d6671";
+            ctx.fillRect(A.x, by, bw, bh);
+            if (g > 0.95 && bh > 7)
+              label(v.toFixed(3), A.x + bw + 5, by + bh - 1, "#d3d8de", "left", "500 10.5px ui-monospace, Menlo, Consolas, monospace");
+          });
+        });
+        // panel 2: runtime per scene on a log axis
+        label("Time per scene (log scale)", T.x, T.y - 10, "#98a0ab");
+        const lo = -4,
+          hi = 1,
+          X = (v) => T.x + ((Math.log10(v) - lo) / (hi - lo)) * T.w;
+        ctx.strokeStyle = "#2b313a";
+        ctx.lineWidth = 1;
+        for (let e = lo; e <= hi; e++) {
+          const x = T.x + ((e - lo) / (hi - lo)) * T.w;
+          ctx.beginPath();
+          ctx.moveTo(x, T.y);
+          ctx.lineTo(x, T.y + T.h);
+          ctx.stroke();
+          label(
+            ["0.1 ms", "1 ms", "10 ms", "0.1 s", "1 s", "10 s"][e - lo],
+            x,
+            T.y + T.h + 14,
+            "#98a0ab",
+            "center",
+            "500 10px ui-monospace, Menlo, Consolas, monospace"
+          );
+        }
+        const rh = T.h / k;
+        B.order.forEach((name, i) => {
+          const v = (B.thor1.t[i] + B.thor3.t[i]) / 2,
+            me = name === "PR-MDP",
+            y = T.y + i * rh + rh / 2,
+            x = T.x + (X(v) - T.x) * gt;
+          if (!wide)
+            label(name, T.x - 10, y + 4, me ? COL["PR-MDP"] : "#d3d8de", "right", `${me ? 700 : 500} 11px ui-monospace, Menlo, Consolas, monospace`);
+          ctx.strokeStyle = me ? COL["PR-MDP"] : "#9aa4b1";
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.moveTo(T.x, y);
+          ctx.lineTo(x, y);
+          ctx.stroke();
+          ctx.fillStyle = me ? COL["PR-MDP"] : "#d3d8de";
+          ctx.beginPath();
+          ctx.arc(x, y, 4, 0, 7);
+          ctx.fill();
+          if (gt > 0.95)
+            label(
+              v >= 1 ? `${v.toFixed(1)} s` : `${(v * 1000).toFixed(v < 0.001 ? 2 : 1)} ms`,
+              x + 8,
+              y - 6,
+              "#d3d8de",
+              "left",
+              "500 10.5px ui-monospace, Menlo, Consolas, monospace"
+            );
+        });
+        if (wide) label("Layout 1 (dark) / Layout 3 (light) · lower is better", 16, H - 10, "#98a0ab");
+      }
+      function tick(now) {
+        const [W, H] = fit(),
+          f = FLOW[step];
+        let el = playing ? now - t0 : pausedAt;
+        if (playing && el > f.d) {
+          if (step === FLOW.length - 1) setScene((sc + 1) % D.scenes.length);
+          else go(step + 1);
+          el = 0;
+        }
+        const u = reduce ? 1 : Math.min(el / f.d, 1);
+        nodes.forEach((nd, i) => nd.querySelector(".bar").style.setProperty("--p", i < step ? "100%" : i === step ? `${u * 100}%` : "0%"));
+        ctx.fillStyle = "#0b0d10";
+        ctx.fillRect(0, 0, W, H);
+        if (step === 3) drawBench(W, H, u);
+        else drawScene(W, H, u, now / 1000);
+        requestAnimationFrame(tick);
+      }
+      renderPanel();
+      requestAnimationFrame(tick);
+    </script>
+  </body>
+</html>

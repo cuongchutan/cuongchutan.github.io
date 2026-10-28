@@ -1,12 +1,14 @@
 ---
 layout: page
 title: Robotic Pick-and-Place for Production
-description: Robotics Software Intern · BMW Group · 03/2025 – 08/2025
+description: Robotics Software Intern · 03/2025 – 08/2025
 importance: 2
 category: Work
 ---
 
-**Where:** BMW Group, Munich, Germany — Robotics Software Intern
+> The details of my work at BMW Group are confidential, so only results are shown here.
+
+**Where:** BMW Group, Munich, Germany
 
 **Results.**
 
@@ -18,7 +20,5 @@ category: Work
 <a class="btn z-depth-1 mt-2" role="button" href="https://www.press.bmwgroup.com/global/video/detail/PF0010113/bmw-group-center-of-competence-for-physical-ai-in-production" target="_blank" rel="noopener">
   <i class="fa-solid fa-play"></i> Watch: BMW Group Center of Competence for Physical AI in Production
 </a>
-
-> The details of my work at BMW Group are confidential, so only results are shown here.
 
 **Tools:** ROS2 · MoveIt2 · C++ · Python · Docker

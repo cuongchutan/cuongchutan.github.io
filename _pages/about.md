@@ -37,12 +37,19 @@ latest_posts:
   .edu-school { margin: 0.15rem 0 0.5rem; }
   .edu-tags { display: flex; flex-wrap: wrap; gap: 0.4rem; }
   .edu-tag { font-size: 0.85rem; padding: 0.1rem 0.6rem; border-radius: 1rem; border: 1px solid var(--global-theme-color); color: var(--global-theme-color); }
+  @media (min-width: 576px) {
+    .post-header { margin-right: 32%; }
+    .post article > .profile { margin-top: -6.4rem; }
+  }
   .edu-note { margin-top: 0.5rem; font-size: 0.9rem; color: var(--global-text-color-light); }
 </style>
 
 **Open to full-time, long-term positions in robotics software, 3D perception and robot manipulation — available to start as soon as possible.**
 
-I am a robotics software engineer with an M.Sc. in Computational Engineering (Elite Program) from FAU Erlangen-Nürnberg. I build perception and manipulation software that runs on real robots. In my master's thesis at **Carl Zeiss**, I developed a method that reconstructs 3D models of unknown, textureless objects from RGB images alone; on industrial objects it was the most accurate method benchmarked (2.8 mm Chamfer distance) and ran 32% faster than COLMAP. As a robotics software intern at **BMW Group**, I contributed to a dual-robot pick-and-place cell that handled two full bins (~40 parts) autonomously. Before that, I worked on human motion prediction for safe human-robot interaction at FAU, safety-critical ADAS software on automotive ECUs at **Bosch**, and LiDAR SLAM and drone design at HUST.
+I aim to be a robotics software engineer with an M.Sc. in Computational Engineering (Elite Program) from FAU Erlangen-Nürnberg. I build perception and manipulation software that runs on real robots. 
+In my master's thesis at **Carl Zeiss**, I developed a method that reconstructs 3D models of unknown, textureless objects from RGB images alone; on industrial objects it was the most accurate method benchmarked (2.8 mm Chamfer distance) and ran 32% faster than COLMAP. 
+As a robotics software intern at **BMW Group**, I contributed to a dual-robot pick-and-place cell that handled two full bins (~40 parts) autonomously. 
+Before that, I worked on human motion prediction for safe human-robot interaction at **FAU**, safety-critical ADAS software on automotive ECUs at **Bosch**, and LiDAR SLAM and drone design at **HUST**.
 {: .about-summary}
 
 <div style="clear: both"></div>
@@ -75,8 +82,7 @@ I am a robotics software engineer with an M.Sc. in Computational Engineering (El
     <div class="edu-school">Hanoi University of Science and Technology (HUST), Vietnam</div>
     <div class="edu-tags">
       <span class="edu-tag">Elite Program</span>
-      <span class="edu-tag">GPA 3.31 / 4.0 (Very Good)</span>
-      <span class="edu-tag">1.7 on the German scale</span>
+      <span class="edu-tag">GPA 3.31 / 4.0 (Very Good) = 1.7 (German scale)</span>
     </div>
   </div>
 </div>

@@ -11,7 +11,6 @@ contact_note: >
 description: > # the ">" symbol means to ignore newlines until "footer_text:"
   Portfolio of Chu Tan Cuong, M.Sc. — Robotics Software Engineer working on ROS2, C++, Python and 3D perception.
 footer_text: >
-  Powered by <a href="https://jekyllrb.com/" target="_blank">Jekyll</a> with <a href="https://github.com/alshedivat/al-folio">al-folio</a> theme.
   Hosted by <a href="https://pages.github.com/" target="_blank">GitHub Pages</a>.
   <script>document.querySelectorAll("#search-toggle .nav-link").forEach(function (el) { el.firstChild.textContent = "Search "; });</script>
   <style>
@@ -26,7 +25,35 @@ footer_text: >
       -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); border-radius: 14px;
       padding: 1.5rem 2rem 2rem; margin-bottom: 2.5rem; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2); }
     @media (max-width: 576px) { div[role="main"] { padding: 1rem; border-radius: 10px; } }
+    div[role="main"], footer, #back-to-top { transition: opacity 0.35s ease, visibility 0.35s; }
+    html.bg-only div[role="main"], html.bg-only footer, html.bg-only #back-to-top { opacity: 0; visibility: hidden; }
+    .bg-view-item { position: relative; }
+    #bg-toggle { background: none; border: 0; padding: 0; color: var(--global-text-color); cursor: pointer; width: 2rem; height: 2rem;
+      display: inline-flex; align-items: center; justify-content: center; }
+    @media (min-width: 576px) { #bg-toggle { transform: translateY(4px); } }
+    #bg-toggle:hover, html.bg-only #bg-toggle { color: var(--global-theme-color); }
+    .bg-tip { position: absolute; top: calc(100% + 10px); right: 0; width: 15rem; padding: 0.5rem 0.75rem; border-radius: 8px;
+      font-size: 0.85rem; line-height: 1.4; text-align: left; color: var(--global-text-color); background: var(--global-bg-color);
+      border: 1px solid var(--global-divider-color); box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2); opacity: 0; visibility: hidden;
+      transition: opacity 0.2s; pointer-events: none; z-index: 1100; }
+    .bg-view-item:hover .bg-tip, #bg-toggle:focus-visible + .bg-tip { opacity: 1; visibility: visible; }
+    .bg-tip::before { content: "I was born in Hanoi, Vietnam. The background is Hanoi by day. Click to see the photo."; }
+    html[data-theme="dark"] .bg-tip::before { content: "I was born in Hanoi, Vietnam. The background is Hanoi by night. Click to see the photo."; }
+    html.bg-only .bg-tip::before { content: "Hanoi, Vietnam: my hometown. Click again, or anywhere on the photo, to bring the page back."; }
+    @media (max-width: 576px) { .bg-tip { right: auto; left: 0; } }
   </style>
+  <script>(function () {
+    var tg = document.querySelector("#navbar .toggle-container"); if (!tg) return;
+    var li = document.createElement("li"); li.className = "toggle-container bg-view-item";
+    li.innerHTML = '<button id="bg-toggle" type="button" aria-pressed="false" aria-label="Show only the background photo of Hanoi"><i class="fa-solid fa-image"></i></button><span class="bg-tip" role="tooltip"></span>';
+    tg.parentNode.insertBefore(li, tg);
+    var btn = li.querySelector("button"), icon = btn.querySelector("i"), root = document.documentElement;
+    function set(on) { root.classList.toggle("bg-only", on); btn.setAttribute("aria-pressed", String(on));
+      icon.className = on ? "fa-solid fa-eye" : "fa-solid fa-image"; }
+    btn.addEventListener("click", function () { set(!root.classList.contains("bg-only")); });
+    document.addEventListener("keydown", function (e) { if (e.key === "Escape") set(false); });
+    document.addEventListener("click", function (e) { if (root.classList.contains("bg-only") && !e.target.closest("#navbar")) set(false); });
+  })();</script>
 keywords: robotics, ROS2, C++, Python, 3D perception, computer vision, MoveIt2, portfolio # add your own keywords or leave empty
 lang: en # the language of your site (for example: en, fr, cn, ru, etc.)
 icon: 🤖 # the emoji used as the favicon (alternatively, provide image name in /assets/img/)

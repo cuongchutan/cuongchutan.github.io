@@ -9,3 +9,5 @@ _data/citations.yml
 
 # generated point-cloud and metric data for the thesis animations
 assets/thesis/**/*.js
+# generated trajectory and map data for the motion-prediction animation
+assets/mdp/*.js
