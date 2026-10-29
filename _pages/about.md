@@ -47,9 +47,9 @@ latest_posts:
 **Open to full-time, long-term positions in robotics software, 3D perception and robot manipulation — available to start as soon as possible.**
 
 I aim to be a robotics software engineer with an M.Sc. in Computational Engineering (Elite Program) from FAU Erlangen-Nürnberg. I build perception and manipulation software that runs on real robots.
-In my master's thesis at **Carl Zeiss**, I developed a method that reconstructs 3D models of unknown, textureless objects from RGB images alone; on industrial objects it was the most accurate method benchmarked (2.8 mm Chamfer distance) and ran 32% faster than COLMAP.
-As a robotics software intern at **BMW Group**, I contributed to a dual-robot pick-and-place cell that handled two full bins (~40 parts) autonomously and worked on a cobot that works alongside people.
-Before that, I worked on human motion prediction for safe human-robot interaction at **FAU**, safety-critical ADAS software on automotive ECUs at **Bosch**, and LiDAR SLAM and a foldable drone at **HUST**.
+In my master's thesis at **<a href="https://www.zeiss.com/corporate/en/home.html" target="_blank" rel="noopener">Carl Zeiss</a>**, I developed a method that reconstructs 3D models of unknown, textureless objects from RGB images alone; on industrial objects it was the most accurate method benchmarked (2.8 mm Chamfer distance) and ran 32% faster than COLMAP.
+As a robotics software intern at **<a href="https://www.bmwgroup.com/en.html" target="_blank" rel="noopener">BMW Group</a>**, I contributed to a dual-robot pick-and-place cell that handled two full bins (~40 parts) autonomously and worked on a cobot that works alongside people.
+Before that, I worked on human motion prediction for safe human-robot interaction at **<a href="https://www.fau.de/" target="_blank" rel="noopener">FAU</a>**, safety-critical ADAS software on automotive ECUs at **<a href="https://www.bosch.com/" target="_blank" rel="noopener">Bosch</a>**, and LiDAR SLAM and a foldable drone at **<a href="https://hust.edu.vn/en/" target="_blank" rel="noopener">HUST</a>**.
 {: .about-summary}
 
 <div style="clear: both"></div>

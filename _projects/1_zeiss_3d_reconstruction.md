@@ -13,9 +13,13 @@ category: Work
 
 **Goal.** Model-based pose tracking needs a 3D model of the object, but unknown, textureless industrial parts often come without a CAD model. My thesis develops an RGB-only method that reconstructs meshes of such objects without CAD models, so they can serve as object models for model-free pose tracking.
 
+**What I did.**
+
+- Developed a method that turns an RGB video of an unknown object into a 3D mesh, with no CAD model and no depth camera.
+- Benchmarked it on **38 objects from 5 public datasets** against FoundationPose, COLMAP MVS and NeMO, measuring accuracy against the CAD models and how well each model matches every input view.
+
 **Results.**
 
-- Benchmarked on **38 objects from 5 public datasets** against FoundationPose, COLMAP MVS and NeMO.
 - On industrial objects, it was the **most accurate method (2.8 mm Chamfer distance)**.
 - Registered **100% of views** and ran **32% faster than COLMAP**.
 
@@ -28,6 +32,7 @@ Three example runs, one for each way the camera and the object can move. Pick an
 <p class="small text-muted">These are single example runs; the benchmark figures above are averages over all objects.</p>
 
 <style>
+  .post article p, .post article li { text-align: justify; hyphens: auto; }
   .thesis-frame { display: block; width: 100%; height: 1100px; border: 0; margin: 0.5rem 0 1rem; background: transparent; }
 </style>
 

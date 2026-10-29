@@ -28,6 +28,7 @@ Pick one of the example scenes from my report and follow it step by step: what t
 <p class="small text-muted">The example scenes were re-run with my final code; the benchmark numbers are from the final report. Trajectory data: <a href="http://thor.oru.se/" target="_blank" rel="noopener">THÖR dataset</a>, Örebro University.</p>
 
 <style>
+  .post article p, .post article li { text-align: justify; hyphens: auto; }
   .mdp-frame { display: block; width: 100%; height: 1100px; border: 0; margin: 0.5rem 0 1rem; background: transparent; }
 </style>
 

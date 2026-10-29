@@ -52,6 +52,7 @@
         display: grid;
         grid-template-columns: repeat(3, minmax(0, 1fr));
         gap: 8px;
+        margin-top: 10px;
       }
       .case {
         all: unset;
@@ -87,7 +88,7 @@
       .rail {
         position: relative;
         display: grid;
-        grid-template-columns: repeat(4, minmax(0, 1fr));
+        grid-template-columns: repeat(5, minmax(0, 1fr));
         gap: 6px;
         padding-top: 12px;
       }
@@ -251,6 +252,8 @@
       .info p {
         margin: 0;
         color: var(--muted);
+        text-align: justify;
+        hyphens: auto;
       }
       .tables {
         display: grid;
@@ -338,6 +341,15 @@
         .view {
           aspect-ratio: 1 / 1;
         }
+        .view.tall {
+          aspect-ratio: 3 / 4;
+        }
+        .node small {
+          font-size: 9.5px;
+          letter-spacing: 0.02em;
+          text-align: center;
+          line-height: 1.2;
+        }
         #hudR {
           display: none;
         }
@@ -347,10 +359,6 @@
         .cases {
           grid-template-columns: 1fr;
         }
-      }
-      .cases {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        margin-top: 10px;
       }
     </style>
   </head>
@@ -366,6 +374,7 @@
         <div class="cases" id="cases" hidden>
           <button class="case" data-k="flat" aria-pressed="true"><b>Arms flat</b><span id="caseFlat"></span></button>
           <button class="case" data-k="fold" aria-pressed="false"><b>Arms at 50°</b><span id="caseFold"></span></button>
+          <button class="case" data-k="adapt" aria-pressed="false"><b>Fold when needed</b><span id="caseAdapt"></span></button>
         </div>
         <div class="chips" id="chips"></div>
         <div class="controls">
@@ -420,7 +429,19 @@
           lift = 4 * T_MAX * Math.cos(e);
         return { eta: etaDeg, reach, r: Math.hypot(reach, 0.1), a: Math.min(A_FASTER, Math.sqrt(Math.max(0, lift * lift - (MASS * G) ** 2)) / MASS) };
       }
-      const CONF = { flat: config(0), fold: config(50) };
+      // folding: the arms may tilt up to 50° (hover needs η ≤ 52.2°); an MG996R servo folds them in about 0.2 s
+      const ETA_MAX = 50,
+        ETA_RATE = 250, // °/s
+        T_FOLD = 0.4, // look this far ahead (in time) for gaps that need folded arms
+        FOLD_COST = 4; // the global search prefers routes where flat arms fit
+      const CONF = { flat: config(0), fold: config(ETA_MAX), adapt: { ...config(ETA_MAX), adaptive: true } };
+      // the flattest arm angle whose radius (plus the margin) fits in a clearance c
+      function etaFor(c) {
+        const r = c - MARGIN;
+        if (r >= CONF.flat.r) return 0;
+        const cosE = (Math.sqrt(Math.max(0, r * r - 0.01)) - 0.1) / 0.2;
+        return Math.min(ETA_MAX, Math.ceil(Math.acos(Math.max(-1, Math.min(1, cosE))) / DEG));
+      }
       const START = [2, 8],
         GOAL = [28, 8];
 
@@ -521,6 +542,11 @@
           vy: 0,
           yaw: 0,
           t: 0,
+          eta: 0, // current arm angle, °
+          etaCmd: 0,
+          reach: cfg.adaptive ? CONF.flat.reach : cfg.reach,
+          r: cfg.adaptive ? CONF.flat.r : cfg.r,
+          a: cfg.adaptive ? CONF.flat.a : cfg.a,
           known: new Uint8Array(GW * GH), // 0 unknown, 1 free, 2 occupied
           dOcc: new Float32Array(GW * GH), // distance to the nearest known obstacle, m
           path: null, // global path through free and unknown space
@@ -586,6 +612,12 @@
       }
       // a cell is blocked when a known obstacle is closer than the drone's radius plus a margin
       const blocked = (s, i) => s.dOcc[i] - RES / 2 < s.cfg.r + MARGIN;
+      // a free cell where only folded arms fit (adaptive drone only)
+      const needFold = (s, i) => s.cfg.adaptive && s.dOcc[i] - RES / 2 < CONF.flat.r + MARGIN;
+      const idx = (p) => {
+        const [c, r] = cellOf(p[0], p[1]);
+        return r * GW + c;
+      };
       function astar(s, start, goal) {
         const g = new Float32Array(GW * GH).fill(Infinity),
           from = new Int32Array(GW * GH).fill(-1),
@@ -623,7 +655,7 @@
             // blocked cells are off limits, except to climb out of one the drone has drifted into
             if (blocked(s, j) && !(blocked(s, i) && s.dOcc[j] > s.dOcc[i])) continue;
             if (dc && dr && !blocked(s, i) && (blocked(s, r * GW + nc) || blocked(s, nr * GW + c))) continue;
-            const ng = g[i] + w;
+            const ng = g[i] + w * (needFold(s, j) ? FOLD_COST : 1);
             if (ng < g[j]) {
               g[j] = ng;
               from[j] = i;
@@ -638,23 +670,31 @@
       }
       // ESCAPE: near the drone, inflated (but not occupied) cells are allowed so it can steer back out of them
       const ESCAPE = 0.25;
-      function clear(s, a, b, escape = 0) {
+      // strict: also keep out of cells where only folded arms fit (except near the ends of the line)
+      function clear(s, a, b, escape = 0, strict = false) {
         const L = Math.hypot(b[0] - a[0], b[1] - a[1]),
           n = Math.ceil(L / (RES / 2));
         for (let k = 0; k <= n; k++) {
           const [c, r] = cellOf(a[0] + ((b[0] - a[0]) * k) / n, a[1] + ((b[1] - a[1]) * k) / n);
-          const i = r * GW + c;
-          if (s.known[i] === 2 || (blocked(s, i) && (L * k) / n >= escape)) return false;
+          const i = r * GW + c,
+            d = (L * k) / n;
+          if (s.known[i] === 2 || (blocked(s, i) && d >= escape)) return false;
+          if (strict && needFold(s, i) && d >= Math.max(escape, 0.2) && d <= L - 0.2) return false;
         }
         return true;
       }
       // keep only the corners of the grid path (string pulling)
+      // the adaptive drone pulls each run of "flat fits" and "fold needed" cells on its own,
+      // so shortcuts never move a stretch where flat arms fit into a gap that needs folding
       function pull(s, pts) {
-        const out = [pts[0]];
+        const f = pts.map((p) => needFold(s, idx(p))),
+          out = [pts[0]];
         let i = 0;
         while (i < pts.length - 1) {
-          let j = pts.length - 1;
-          while (j > i + 1 && !clear(s, pts[i], pts[j], i ? 0 : ESCAPE)) j--;
+          let end = i + 1;
+          while (end < pts.length - 1 && f[end + 1] === f[i + 1]) end++;
+          let j = end;
+          while (j > i + 1 && !clear(s, pts[i], pts[j], i ? 0 : ESCAPE, !f[i + 1])) j--;
           out.push(pts[j]);
           i = j;
         }
@@ -726,7 +766,17 @@
           a2 = Math.atan2(p[2][1] - p[1][1], p[2][0] - p[1][0]),
           turn = Math.abs(Math.atan2(Math.sin(a2 - a1), Math.cos(a2 - a1))),
           vc = Math.max(0.6, V_MAX * Math.cos(Math.min(turn, Math.PI / 2)) ** 2);
-        return Math.sqrt(vc * vc + 2 * s.cfg.a * Math.max(0, Math.hypot(p[1][0] - p[0][0], p[1][1] - p[0][1]) - 0.3));
+        return Math.sqrt(vc * vc + 2 * s.a * Math.max(0, Math.hypot(p[1][0] - p[0][0], p[1][1] - p[0][1]) - 0.3));
+      }
+      // the arm angle needed at the drone and along the next `ahead` metres of its path
+      function etaAhead(s, ahead) {
+        let need = etaFor(s.dOcc[idx([s.x, s.y])] - RES / 2);
+        if (s.path)
+          for (let d = 0; d <= Math.min(ahead, pathLen(s.path)); d += RES / 2) need = Math.max(need, etaFor(s.dOcc[idx(along(s.path, d))] - RES / 2));
+        return need;
+      }
+      function cloneSim(s) {
+        return { ...s, known: s.known.slice(), dOcc: s.dOcc.slice(), path: s.path && s.path.map((p) => p.slice()), trail: s.trail.slice() };
       }
       const DT = 1 / 60;
       function stepSim(s) {
@@ -740,8 +790,19 @@
           s.tPlan = 0;
           plan(s);
         }
-        const sp = Math.hypot(s.vx, s.vy),
-          a = s.cfg.a;
+        const sp = Math.hypot(s.vx, s.vy);
+        let aPlan = s.a;
+        if (s.cfg.adaptive) {
+          // fold for the narrowest gap the drone reaches within T_FOLD, and open again once past it
+          s.etaCmd = etaAhead(s, 0.3 + sp * T_FOLD);
+          s.eta += Math.max(-ETA_RATE * DT, Math.min(ETA_RATE * DT, s.etaCmd - s.eta));
+          const now = config(s.eta);
+          s.reach = now.reach;
+          s.r = now.r;
+          s.a = now.a;
+          aPlan = Math.min(s.a, config(s.etaCmd).a);
+        }
+        const a = s.a;
         let dvx = -s.vx,
           dvy = -s.vy,
           aim = s.yaw;
@@ -749,7 +810,7 @@
           // keep a braking distance inside the known free space: the safe backup is always available
           const room = Math.max(0, Math.min(s.safeLen, aheadFree(s)) - 0.15 - sp * 0.1),
             toGoal = pathLen(s.path),
-            vCmd = Math.min(V_MAX, Math.sqrt(2 * a * room), Math.sqrt(2 * a * toGoal), cornerSpeed(s)),
+            vCmd = Math.min(V_MAX, Math.sqrt(2 * aPlan * room), Math.sqrt(2 * aPlan * toGoal), cornerSpeed(s)),
             tgt = along(s.path, 0.35),
             dx = tgt[0] - s.x,
             dy = tgt[1] - s.y,
@@ -787,51 +848,69 @@
         return m;
       }
 
-      // ---------- results of both flights, computed once on load
+      // ---------- results of the three flights, computed once on load
+      const CASES = ["flat", "fold", "adapt"];
+      const NAME = { flat: "arms flat", fold: "arms at 50°", adapt: "folding when needed" };
       function fly(cfg, until) {
         const s = Sim(cfg);
-        let crossY = null;
+        let crossY = null,
+          etaMax = 0;
         while (!s.done && s.t < 60 && !(until && until(s))) {
           stepSim(s);
           if (crossY === null && s.x > 15) crossY = s.y;
+          etaMax = Math.max(etaMax, s.eta);
         }
-        return { s, crossY };
+        return { s, crossY, etaMax };
       }
       const RESULT = {};
-      for (const k of ["flat", "fold"]) {
-        const { s, crossY } = fly(CONF[k]);
-        RESULT[k] = { t: s.t, route: crossY !== null && Math.abs(crossY - 7.95) < 0.3 ? "through the slot" : "around the wall" };
+      for (const k of CASES) {
+        const { s, crossY, etaMax } = fly(CONF[k]);
+        RESULT[k] = { t: s.t, etaMax, route: crossY !== null && Math.abs(crossY - 7.95) < 0.3 ? "through the slot" : "around the wall" };
       }
-      // the moment the flat drone first faces the wall: used by steps 2 and 3
-      const SNAP = fly(CONF.flat, (s) => s.x > 12.6).s;
+      // the moment the drone first faces the wall: step 1 flies up to it, steps 2 and 3 freeze it, step 4 continues from it
+      const atSnap = (s) => s.x > 12.6;
+      const SNAP = fly(CONF.adapt, atSnap).s;
+      const SLOT_X = 17; // step 4 ends once the drone is through the slot
 
-      const PLAY = 1.5; // step 4 runs at 1.5× real time
-      const COL = { free: [47, 55, 66], unknown: [24, 28, 34], unseen: [52, 58, 68], occ: [232, 237, 242], infl: [40, 112, 132] };
+      const PLAY = 1.5, // step 5 runs at 1.5× real time
+        SLOW = 0.25; // step 4 in slow motion
+      const COL = {
+        free: [47, 55, 66],
+        unknown: [24, 28, 34],
+        unseen: [52, 58, 68],
+        occ: [232, 237, 242],
+        infl: [40, 112, 132],
+        inflU: [32, 70, 84],
+        fold: [134, 100, 38],
+        foldU: [70, 56, 32],
+      };
       const C = {
         path: "#e8edf2",
         safe: "#69c48a",
         stop: "#ffd166",
         goal: "#ffd166",
+        fold: "#f0a24a",
         fov: "rgba(240,162,74,.16)",
         fovLine: "rgba(240,162,74,.55)",
         arm: "#e05a4f",
         body: "#e8c547",
         whole: "#40c8e6",
+        look: "rgba(64,200,230,.35)",
       };
       const FLOW = [
         {
-          d: 9000,
+          d: 0,
           node: "Sense",
           t: "It only knows what its camera has seen",
           hud: "DEPTH CAMERA · 87° view · 4 m range",
-          text: "FASTER is a planner from MIT for flying fast through places nobody has mapped. A depth camera looks ahead, and each frame marks the space it sees as free or occupied. Everything else is unknown, including the obstacles drawn faintly here that the drone has not seen yet.",
+          text: "FASTER (Tordesillas et al., IROS 2019) plans fast flights through places nobody has mapped. As the Cubic Drone flies towards the goal, its depth camera marks the space it sees as free or occupied. Everything else is unknown, including the obstacles drawn faintly here that the drone has not seen yet.",
         },
         {
           d: 9000,
           node: "Global path",
           t: "A path that is allowed to cross unknown space",
           hud: "GLOBAL SEARCH · unknown counts as free",
-          text: "At every replan, the planner searches a path from the drone to the goal on this map. Known obstacles are inflated by the drone's radius, and unknown cells count as free. That optimism keeps the drone fast: it does not have to stop at the edge of what it has seen.",
+          text: "At every replan, the planner searches a path from the drone to the goal on this map. Unknown cells count as free, so the drone does not have to stop at the edge of what it has seen. Known obstacles are grown by the drone's radius: teal cells are too close even with folded arms, and amber cells fit only folded arms. The search avoids amber cells where it can, but the slot in the wall saves a long detour, so the path goes through it.",
         },
         {
           d: 9000,
@@ -842,12 +921,21 @@
         },
         {
           d: 0,
-          node: "Cubic Drone",
-          t: "Could it fly the Cubic Drone?",
+          node: "Fold to fit",
+          t: "How the drone knows when to fold its arms",
+          hud: "ARM ANGLE · from the room along the path",
+          text: "FASTER plans for one fixed shape, so the arm angle is chosen from its path. Over the next 0.4 s of flight, the drone reads the room along the path, which is the distance to the nearest known obstacle. It then picks the flattest arm angle whose radius plus a safety margin still fits. The 0.7 m slot leaves 0.35 m on each side, so the arms fold just before the slot and open again right after it. Up to about 46°, folding costs no acceleration; beyond that, the tilted thrust leaves less spare thrust to accelerate with.",
+        },
+        {
+          d: 0,
+          node: "Compare",
+          t: "Flat, folded, or folding when needed",
           hud: "FLIGHT · 0.7 m slot in the wall",
-          text: "Yes, in principle. With its arms held at one angle, the Cubic Drone is a quadcopter, which is what FASTER was built for. Folding changes two of its inputs: the drone gets narrower, but it accelerates less because part of the thrust points sideways. With flat arms it does not fit through the 0.7 m slot and has to find a way around the wall; with its arms at 50° it fits through.",
+          text: "Three flights through the same unknown world. With flat arms, the drone does not fit through the slot and has to fly around the wall. With its arms held at 50°, it fits, but it accelerates less for the whole flight. Folding only for the slot keeps full acceleration everywhere else, so it reaches the goal first.",
         },
       ];
+      const S_FOLD = 3,
+        S_FLY = 4;
       const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
       // ---------- theme: follow the embedding page (al-folio sets data-theme on <html>), else the OS
@@ -877,10 +965,24 @@
         t0 = performance.now(),
         playing = !reduce,
         pausedAt = 0,
-        live = Sim(CONF.flat),
-        liveKey = "flat",
+        live = null,
+        liveKey = "adapt",
         doneAt = null,
-        autoSwitch = true; // step 4 plays flat arms, then folded arms, unless the reader picks one
+        simAcc = 0, // real time not yet simulated, s
+        autoSwitch = true; // step 5 plays flat arms, then folding when needed, unless the reader picks a case
+      // step the simulation in fixed DT steps, whatever the screen's frame rate
+      function advance(s, dt, speed, stop) {
+        simAcc += dt * speed;
+        while (simAcc >= DT) {
+          simAcc -= DT;
+          if (s.done || (stop && stop(s))) {
+            simAcc = 0;
+            return true;
+          }
+          stepSim(s);
+        }
+        return s.done || (stop && stop(s));
+      }
       const rail = document.getElementById("rail");
       FLOW.forEach((f, i) => {
         const b = document.createElement("button");
@@ -891,9 +993,11 @@
       });
       const nodes = [...rail.querySelectorAll(".node")];
       const cases = [...document.querySelectorAll(".case")];
-      const caseText = (k) => `${(2 * CONF[k].r).toFixed(2)} m wide · ${CONF[k].a.toFixed(1)} m/s²`;
+      const width = (r) => `${(2 * r).toFixed(2)} m`;
+      const caseText = (k) => `${RESULT[k].t.toFixed(1)} s · ${RESULT[k].route}`;
       document.getElementById("caseFlat").textContent = caseText("flat");
       document.getElementById("caseFold").textContent = caseText("fold");
+      document.getElementById("caseAdapt").textContent = caseText("adapt");
       cases.forEach((b) =>
         b.addEventListener("click", () => {
           autoSwitch = false;
@@ -904,17 +1008,16 @@
         liveKey = k;
         live = Sim(CONF[k]);
         doneAt = null;
+        simAcc = 0;
+        if (reduce) while (!live.done && live.t < 60) stepSim(live);
         cases.forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.k === k)));
         renderPanel();
       }
 
       const row = (a, b) => `<div><dt>${a}</dt><dd>${b}</dd></div>`;
-      const cfgRows = (k) => [
-        ["Width (corner to corner)", `${(2 * CONF[k].r).toFixed(2)} m`],
-        ["Max acceleration", `${CONF[k].a.toFixed(1)} m/s²`],
-        ["Route", RESULT[k].route],
-        ["Time to goal", `${RESULT[k].t.toFixed(1)} s`],
-      ];
+      const etaSlot = Math.round(RESULT.adapt.etaMax);
+      const NOTE_SIM =
+        "Obstacles the drone has not seen yet are drawn faintly, so you can follow what it discovers. The drone flies the same route as in the next steps.";
       const PANELS = [
         [
           "Sensor",
@@ -931,7 +1034,7 @@
             ["Cell states", "unknown, free, occupied"],
             ["Goal", `${(GOAL[0] - START[0]).toFixed(0)} m ahead`],
           ],
-          "A concept simulation: FASTER has not been run on the Cubic Drone. The world is generated, and the drone's size and thrust come from the thesis.",
+          NOTE_SIM,
         ],
         [
           "Global search",
@@ -941,12 +1044,12 @@
             ["Unknown cells", "treated as free"],
             ["Replanning", `every ${REPLAN} s`],
           ],
-          "Inflation",
+          "Grown obstacles",
           [
-            ["Drone radius, flat arms", `${CONF.flat.r.toFixed(2)} m`],
+            ["Radius, arms flat", `${CONF.flat.r.toFixed(2)} m`],
+            ["Radius, arms at 50°", `${CONF.fold.r.toFixed(2)} m`],
             ["Safety margin", `${MARGIN.toFixed(2)} m`],
-            ["Blocked if closer than", `${(CONF.flat.r + MARGIN).toFixed(2)} m`],
-            ["Path", "corners only"],
+            ["Amber cells cost", `${FOLD_COST}× more`],
           ],
           "Jump Point Search finds the same shortest paths as A* on a grid, only faster, so A* stands in for it here.",
         ],
@@ -968,11 +1071,33 @@
           "The corridors are simplified to boxes and the safe plan to a braking distance along the path; FASTER optimizes both trajectories with a mixed-integer solver.",
         ],
         [
-          "Arms flat",
-          cfgRows("flat"),
-          "Arms at 50°",
-          cfgRows("fold"),
-          `Max acceleration is FASTER's default ${A_FASTER} m/s², or less when tilted arms leave little spare thrust (1 kg drone, 4 × 4.0 N). Speed capped at ${V_MAX} m/s; shown at ${PLAY}× speed. A real flight would also need the depth camera and an onboard computer, which cut into the thrust margin.`,
+          "Arm angle rule",
+          [
+            ["Looks ahead", `${T_FOLD} s of flight`],
+            ["Room needed", `radius + ${MARGIN.toFixed(2)} m`],
+            ["Flat arms need", `${(CONF.flat.r + MARGIN).toFixed(2)} m`],
+            ["The slot gives", "0.35 m per side"],
+          ],
+          "Folding",
+          [
+            ["Arm servo", "MG996R, one per arm"],
+            ["Fold rate", `${ETA_RATE}°/s`],
+            ["Angle in the slot", `${etaSlot}°`],
+            ["Hover limit", "52.2°"],
+          ],
+          `Shown at ${SLOW}× speed. The arms tilt down as they fold, so the drone gets narrower; the thrust tilts with them, and above 52.2° the four motors can no longer hold the 1 kg drone in the air.`,
+        ],
+        [
+          "Time to goal",
+          CASES.map((k) => [NAME[k][0].toUpperCase() + NAME[k].slice(1), `${RESULT[k].t.toFixed(1)} s, ${RESULT[k].route}`]),
+          "Shape",
+          [
+            ["Width, arms flat", width(CONF.flat.r)],
+            ["Width, arms at 50°", width(CONF.fold.r)],
+            [`Width, arms at ${etaSlot}°`, width(config(etaSlot).r)],
+            ["Max acceleration", `${CONF.flat.a.toFixed(1)} m/s² flat, ${CONF.fold.a.toFixed(1)} m/s² at 50°`],
+          ],
+          `Max acceleration is FASTER's default ${A_FASTER} m/s², or less when tilted arms leave little spare thrust (1 kg drone, 4 × 4.0 N). Speed capped at ${V_MAX} m/s; shown at ${PLAY}× speed.`,
         ],
       ];
       function renderPanel() {
@@ -982,13 +1107,15 @@
         document.getElementById("stitle").textContent = f.t;
         document.getElementById("stext").textContent = f.text;
         document.getElementById("hudL").textContent = f.hud;
-        document.getElementById("hudR").textContent = step === 3 ? `${PLAY}× speed` : "concept · FASTER on the Cubic Drone";
+        document.getElementById("hudR").textContent =
+          step === S_FLY ? `${PLAY}× speed` : step === S_FOLD ? `${SLOW}× speed` : "FASTER on the Cubic Drone";
         document.getElementById("h1").textContent = p[0];
         document.getElementById("f1").innerHTML = p[1].map((r) => row(...r)).join("");
         document.getElementById("h2").textContent = p[2];
         document.getElementById("f2").innerHTML = p[3].map((r) => row(...r)).join("");
         document.getElementById("snote").textContent = p[4];
-        document.getElementById("cases").hidden = step !== 3;
+        document.getElementById("cases").hidden = step !== S_FLY;
+        document.querySelector(".view").classList.toggle("tall", step === S_FOLD);
         const chip = (n, c) => `<span class="chip static"><i style="background:${c}"></i>${n}</span>`;
         const rgb = (a) => `rgb(${a})`;
         const CH = [
@@ -1000,13 +1127,19 @@
           ],
           [
             ["Global path", C.path],
-            ["Inflated obstacles", rgb(COL.infl)],
+            ["Too close", rgb(COL.infl)],
+            ["Folded arms only", rgb(COL.fold)],
             ["Goal", C.goal],
           ],
           [
             ["Whole corridor", C.whole],
             ["Safe corridor", C.safe],
             ["Safe stop", C.stop],
+          ],
+          [
+            ["Flat arms fit", C.path],
+            ["Fold needed", C.fold],
+            ["Next 0.4 s", C.whole],
           ],
           [
             ["Committed (known free)", C.safe],
@@ -1026,8 +1159,14 @@
         step = (i + FLOW.length) % FLOW.length;
         t0 = performance.now();
         pausedAt = 0;
-        if (step === 0) startLive("flat");
-        if (step === 3) {
+        doneAt = null;
+        simAcc = 0;
+        if (step === 0) live = reduce ? cloneSim(SNAP) : Sim(CONF.adapt);
+        if (step === S_FOLD) {
+          live = cloneSim(SNAP);
+          if (reduce) while (live.x < 15) stepSim(live);
+        }
+        if (step === S_FLY) {
           autoSwitch = true;
           startLive("flat");
         }
@@ -1079,6 +1218,14 @@
           cy = wide ? WH / 2 : Math.max(vh / 2, Math.min(WH - vh / 2, s.y));
         CAM = { s: sc, ox: W / 2 - cx * sc, oy: top + (H - top - bot) / 2 - cy * sc };
       }
+      // a close-up `vw` metres wide around a point, inside the box x, y, w, h
+      function closeUp(x, y, w, h, cx, cy, vw) {
+        const sc = w / vw,
+          vh = h / sc;
+        cx = Math.max(vw / 2, Math.min(WW - vw / 2, cx));
+        cy = Math.max(vh / 2, Math.min(WH - vh / 2, cy));
+        CAM = { s: sc, ox: x + w / 2 - cx * sc, oy: y + h / 2 - cy * sc };
+      }
       const P = ([x, y]) => [CAM.ox + CAM.s * x, CAM.oy + CAM.s * y];
       const off = document.createElement("canvas");
       off.width = GW;
@@ -1090,7 +1237,8 @@
         for (let i = 0; i < GW * GH; i++) {
           const k = s.known[i];
           let c = k === 2 ? COL.occ : k === 1 ? COL.free : occTrue[i] ? COL.unseen : COL.unknown;
-          if (infl && k !== 2 && blocked(s, i)) c = k === 1 ? COL.infl : [32, 70, 84];
+          if (infl && k !== 2 && blocked(s, i)) c = k === 1 ? COL.infl : COL.inflU;
+          else if (infl && k !== 2 && needFold(s, i)) c = k === 1 ? COL.fold : COL.foldU;
           d[4 * i] = c[0];
           d[4 * i + 1] = c[1];
           d[4 * i + 2] = c[2];
@@ -1112,6 +1260,7 @@
         ctx.strokeStyle = col;
         ctx.lineWidth = w;
         ctx.lineJoin = "round";
+        ctx.lineCap = "round";
         ctx.setLineDash(dash || []);
         ctx.stroke();
         ctx.setLineDash([]);
@@ -1150,7 +1299,7 @@
       function drone(s) {
         const [x, y] = P([s.x, s.y]),
           k = CAM.s,
-          reach = s.cfg.reach;
+          reach = s.reach;
         ctx.save();
         ctx.translate(x, y);
         ctx.rotate(s.yaw);
@@ -1242,13 +1391,16 @@
         polyline(cut(s.path, safe, L), C.path, 1.6, [6, 5]);
         polyline(cut(s.path, 0, safe), C.safe, 3);
         const sp = Math.hypot(s.vx, s.vy),
-          brake = Math.min(safe, (sp * sp) / (2 * s.cfg.a));
+          brake = Math.min(safe, (sp * sp) / (2 * s.a));
         if (sp > 0.2) mark(along(s.path, brake), C.stop);
       }
 
       // ---------- steps
-      function drawSense(W, H, dt) {
-        for (let k = 0; k < Math.round(dt / DT); k++) stepSim(live);
+      function drawSense(W, H, dt, now) {
+        if (advance(live, dt, 1, atSnap)) {
+          if (doneAt === null) doneAt = now;
+          else if (now - doneAt > 1500 && playing) go(1);
+        }
         camera(W, H, live);
         drawMap(live, false);
         polyline(live.trail, "rgba(255,255,255,.35)", 1.2);
@@ -1291,9 +1443,134 @@
         fov(s);
         drone(s);
       }
+      // the room along the next `ahead` metres of path, and the path coloured by the arm angle it needs
+      function roomAhead(s) {
+        const ahead = 0.3 + Math.hypot(s.vx, s.vy) * T_FOLD;
+        let rm = s.dOcc[idx([s.x, s.y])] - RES / 2;
+        if (s.path) for (let d = 0; d <= Math.min(ahead, pathLen(s.path)); d += RES / 2) rm = Math.min(rm, s.dOcc[idx(along(s.path, d))] - RES / 2);
+        return [rm, ahead];
+      }
+      function foldPath(s) {
+        if (!s.path) return;
+        const L = Math.min(pathLen(s.path), 8);
+        polyline(cut(s.path, 0, Math.min(L, roomAhead(s)[1])), C.look, 9);
+        let d0 = 0,
+          prev = null;
+        for (let d = 0; d <= L + 1e-9; d += RES / 2) {
+          const f = etaFor(s.dOcc[idx(along(s.path, d))] - RES / 2) > 0;
+          if (prev !== null && (f !== prev || d + RES / 2 > L)) {
+            polyline(cut(s.path, d0, d), prev ? C.fold : C.path, prev ? 3.2 : 2);
+            d0 = d;
+          }
+          prev = f;
+        }
+      }
+      // the rule as two small charts: room needed for each arm angle, and the acceleration left
+      function foldCharts(s, x, y, w, h) {
+        const [rm] = roomAhead(s),
+          need = etaFor(rm),
+          E1 = 60,
+          gap = 34,
+          ch = (h - gap - 52) / 2,
+          L = x + 44,
+          R = x + w - 12,
+          X = (e) => L + ((R - L) * e) / E1;
+        const panel = (top, y0, y1, title, fn, ticks, dec) => {
+          const Y = (v) => top + ch - ((v - y0) / (y1 - y0)) * ch;
+          ctx.fillStyle = "rgba(255,255,255,.03)";
+          ctx.fillRect(L, top, R - L, ch);
+          // no hover above 52.2°
+          ctx.fillStyle = "rgba(224,90,79,.14)";
+          ctx.fillRect(X(52.2), top, R - X(52.2), ch);
+          ctx.strokeStyle = "rgba(255,255,255,.25)";
+          ctx.lineWidth = 1;
+          ctx.strokeRect(L, top, R - L, ch);
+          ticks.forEach((v) => label(v.toFixed(dec), L - 6, Y(v) + 4, "#8a929c", "right", `500 10px ${MONO}`));
+          label(title, L, top - 7, "#d3d8de", "left", `600 11px ${MONO}`);
+          ctx.beginPath();
+          for (let e = 0; e <= 52.2; e += 0.5) {
+            const v = Math.max(y0, Math.min(y1, fn(e)));
+            e ? ctx.lineTo(X(e), Y(v)) : ctx.moveTo(X(e), Y(v));
+          }
+          ctx.strokeStyle = "#e8edf2";
+          ctx.lineWidth = 2;
+          ctx.stroke();
+          return Y;
+        };
+        const top1 = y + 18;
+        const Y1 = panel(top1, 0.3, 0.44, "room needed (m)", (e) => config(e).r + MARGIN, [0.32, 0.36, 0.4], 2);
+        // the room the path gives over the next 0.4 s
+        const ry = Y1(Math.min(0.44, rm));
+        ctx.setLineDash([5, 4]);
+        ctx.strokeStyle = C.whole;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(L, ry);
+        ctx.lineTo(R, ry);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        label(
+          rm >= 0.44 ? "room ahead > 0.44 m" : `room ahead ${rm.toFixed(2)} m`,
+          L + 6,
+          Math.max(top1 + 12, ry - 6),
+          C.whole,
+          "left",
+          `500 10.5px ${MONO}`
+        );
+        if (need > 0) {
+          ctx.beginPath();
+          ctx.arc(X(need), Y1(config(need).r + MARGIN), 4.5, 0, 2 * Math.PI);
+          ctx.fillStyle = C.fold;
+          ctx.fill();
+          label(`fold to ${need}°`, X(need) - 6, Y1(config(need).r + MARGIN) + 16, C.fold, "right", `600 10.5px ${MONO}`);
+        }
+        const top2 = top1 + ch + gap;
+        const Y2 = panel(top2, 0, 5.5, "max acceleration (m/s²)", (e) => config(e).a, [0, 2.5, 5], 1);
+        label("no hover", R - 4, top2 + ch - 6, "rgba(224,90,79,.9)", "right", `500 10px ${MONO}`);
+        // the arm angle now
+        ctx.strokeStyle = C.arm;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(X(s.eta), top1);
+        ctx.lineTo(X(s.eta), top2 + ch);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(X(s.eta), Y2(config(s.eta).a), 4.5, 0, 2 * Math.PI);
+        ctx.fillStyle = C.arm;
+        ctx.fill();
+        [0, 20, 40, 52.2].forEach((e) => label(e === 52.2 ? "52°" : `${e}°`, X(e), top2 + ch + 14, "#8a929c", "center", `500 10px ${MONO}`));
+        label("arm angle", R, top2 + ch + 30, "#8a929c", "right", `500 10px ${MONO}`);
+        label(`now ${Math.round(s.eta)}°`, X(s.eta) + 6, top2 + 14, C.arm, "left", `600 11px ${MONO}`);
+      }
+      function drawFold(W, H, dt, now) {
+        if (advance(live, dt, SLOW, (s) => s.x > SLOT_X)) {
+          if (doneAt === null) doneAt = now;
+          else if (now - doneAt > 2000 && playing) go(S_FLY);
+        }
+        const s = live,
+          side = W >= 560,
+          top = 36,
+          bot = 26,
+          mw = side ? W * 0.58 : W,
+          mh = side ? H - top - bot : (H - top - bot) * 0.42;
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(0, top, mw, mh);
+        ctx.clip();
+        closeUp(0, top, mw, mh, s.x + 0.8, s.y, side ? 7 : 5);
+        drawMap(s, true);
+        polyline(s.trail, "rgba(255,255,255,.35)", 1.4);
+        foldPath(s);
+        drone(s);
+        const [dx, dy] = P([s.x, s.y]);
+        label(`${Math.round(s.eta)}°`, dx, dy - s.reach * CAM.s - 10, s.eta > 0.5 ? C.fold : "#d3d8de", "center", `600 12px ${MONO}`);
+        ctx.restore();
+        if (side) foldCharts(s, mw + 8, top, W - mw - 8, H - top - bot);
+        else foldCharts(s, 0, top + mh + 4, W, H - top - bot - mh - 4);
+        label(`arms at ${Math.round(s.eta)}° · ${Math.hypot(s.vx, s.vy).toFixed(1)} m/s`, 16, H - 10);
+      }
       function drawFly(W, H, dt, now) {
-        if (!live.done) for (let k = 0; k < Math.round((dt * PLAY) / DT); k++) stepSim(live);
-        else if (doneAt === null) doneAt = now;
+        if (advance(live, dt, PLAY) && doneAt === null) doneAt = now;
         camera(W, H, live);
         drawMap(live, true);
         polyline(live.trail, "rgba(255,255,255,.4)", 1.4);
@@ -1301,16 +1578,12 @@
         goal();
         plans(live);
         drone(live);
-        label(
-          live.done
-            ? `${liveKey === "flat" ? "flat arms" : "arms at 50°"}: goal reached in ${live.t.toFixed(1)} s`
-            : `t = ${live.t.toFixed(1)} s · ${Math.hypot(live.vx, live.vy).toFixed(1)} m/s`,
-          16,
-          H - 10,
-          live.done ? C.safe : "#d3d8de"
-        );
+        const status =
+          `t = ${live.t.toFixed(1)} s · ${Math.hypot(live.vx, live.vy).toFixed(1)} m/s` +
+          (liveKey === "adapt" ? ` · arms at ${Math.round(live.eta)}°` : "");
+        label(live.done ? `${NAME[liveKey]}: goal reached in ${live.t.toFixed(1)} s` : status, 16, H - 10, live.done ? C.safe : "#d3d8de");
         if (doneAt !== null && now - doneAt > 2500 && playing) {
-          if (autoSwitch && liveKey === "flat") startLive("fold");
+          if (autoSwitch && liveKey === "flat") startLive("adapt");
           else go(step + 1);
         }
       }
@@ -1326,17 +1599,22 @@
           go(step + 1);
           el = 0;
         }
-        const u = reduce ? 1 : f.d ? Math.min(el / f.d, 1) : ((liveKey === "fold" ? 1 : 0) + Math.min(1, live.t / RESULT[liveKey].t)) / 2;
+        let u = 1;
+        if (!reduce && f.d) u = Math.min(el / f.d, 1);
+        else if (!reduce && step === 0) u = Math.min(1, (live.x - START[0]) / (12.6 - START[0]));
+        else if (!reduce && step === S_FOLD) u = Math.min(1, (live.x - SNAP.x) / (SLOT_X - SNAP.x));
+        else if (!reduce) u = ((liveKey === "flat" ? 0 : 1) + Math.min(1, live.t / RESULT[liveKey].t)) / 2;
         nodes.forEach((nd, i) => nd.querySelector(".bar").style.setProperty("--p", i < step ? "100%" : i === step ? `${u * 100}%` : "0%"));
         ctx.fillStyle = "#0b0d10";
         ctx.fillRect(0, 0, W, H);
-        if (step === 0) drawSense(W, H, reduce ? 0 : dt);
+        if (step === 0) drawSense(W, H, reduce ? 0 : dt, now);
         else if (step === 1) drawGlobal(W, H, u);
         else if (step === 2) drawSafe(W, H, u);
+        else if (step === S_FOLD) drawFold(W, H, reduce ? 0 : dt, now);
         else drawFly(W, H, reduce ? 0 : dt, now);
         requestAnimationFrame(tick);
       }
-      renderPanel();
+      go(0);
       requestAnimationFrame(tick);
     </script>
   </body>

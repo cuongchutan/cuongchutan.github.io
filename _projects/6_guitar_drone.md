@@ -18,3 +18,7 @@ Suggested sections once there is something to show:
 - What worked, what did not, next steps
 - Code: add `github: https://github.com/cuongchutan/REPO` to the front matter to show a GitHub icon on the card
 {% endcomment %}
+
+<style>
+  .post article p, .post article li { text-align: justify; hyphens: auto; }
+</style>
