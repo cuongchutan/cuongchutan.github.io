@@ -48,8 +48,8 @@ latest_posts:
 
 I aim to be a robotics software engineer with an M.Sc. in Computational Engineering (Elite Program) from FAU Erlangen-Nürnberg. I build perception and manipulation software that runs on real robots.
 In my master's thesis at **Carl Zeiss**, I developed a method that reconstructs 3D models of unknown, textureless objects from RGB images alone; on industrial objects it was the most accurate method benchmarked (2.8 mm Chamfer distance) and ran 32% faster than COLMAP.
-As a robotics software intern at **BMW Group**, I contributed to a dual-robot pick-and-place cell that handled two full bins (~40 parts) autonomously.
-Before that, I worked on human motion prediction for safe human-robot interaction at **FAU**, safety-critical ADAS software on automotive ECUs at **Bosch**, and LiDAR SLAM and drone design at **HUST**.
+As a robotics software intern at **BMW Group**, I contributed to a dual-robot pick-and-place cell that handled two full bins (~40 parts) autonomously and worked on a cobot that works alongside people.
+Before that, I worked on human motion prediction for safe human-robot interaction at **FAU**, safety-critical ADAS software on automotive ECUs at **Bosch**, and LiDAR SLAM and a foldable drone at **HUST**.
 {: .about-summary}
 
 <div style="clear: both"></div>
