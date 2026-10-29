@@ -41,7 +41,26 @@ footer_text: >
     html[data-theme="dark"] .bg-tip::before { content: "I was born in Hanoi, Vietnam. The background is Hanoi by night. Click to see the photo."; }
     html.bg-only .bg-tip::before { content: "Hanoi, Vietnam: my hometown. Click again, or anywhere on the photo, to bring the page back."; }
     @media (max-width: 576px) { .bg-tip { right: auto; left: 0; } }
+    @media (min-width: 576px) { .publications .bibliography .col-sm-8 { flex: 0 0 83.333%; max-width: 83.333%; } }
+    .publications .title a { color: inherit; }
+    .publications .title a i { font-size: 0.7em; color: var(--global-theme-color); vertical-align: 0.1em; }
+    .publications .title a:hover { color: var(--global-theme-color); }
+    .projects .card-img-top { aspect-ratio: 4 / 3; object-fit: cover; }
+    .role-time { display: block; }
   </style>
+  <script>(function () {
+    document.querySelectorAll(".publications .bibliography li").forEach(function (li) {
+      var t = li.querySelector(".title"), links = li.querySelector(".links"); if (!t || !links) return;
+      var a = Array.prototype.find.call(links.querySelectorAll("a"), function (x) { return /^(DOI|HTML)$/.test(x.textContent.trim()); });
+      if (!a) return;
+      t.innerHTML = '<a href="' + a.href + '" target="_blank" rel="external nofollow noopener">' + t.innerHTML + ' <i class="fa-solid fa-arrow-up-right-from-square"></i></a>';
+      a.remove(); if (!links.querySelector("a, button")) links.remove();
+    });
+    document.querySelectorAll(".projects .card-text, .post-description").forEach(function (p) {
+      var m = p.textContent.trim().match(/^(.+?) · (\d{2}\/\d{4}.*)$/); if (!m) return;
+      p.textContent = m[1]; var s = document.createElement("span"); s.className = "role-time"; s.textContent = m[2]; p.appendChild(s);
+    });
+  })();</script>
   <script>(function () {
     var tg = document.querySelector("#navbar .toggle-container"); if (!tg) return;
     var li = document.createElement("li"); li.className = "toggle-container bg-view-item";

@@ -2,6 +2,7 @@
 layout: page
 title: Robotic Pick-and-Place for Production
 description: Robotics Software Intern · 03/2025 – 08/2025
+img: assets/img/projects/bmw-2025.jpg
 importance: 2
 category: Work
 ---

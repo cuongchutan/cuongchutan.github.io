@@ -11,3 +11,5 @@ _data/citations.yml
 assets/thesis/**/*.js
 # generated trajectory and map data for the motion-prediction animation
 assets/mdp/*.js
+# generated map data for the HUST navigation animation
+assets/hust/*.js

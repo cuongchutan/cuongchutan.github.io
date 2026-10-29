@@ -9,6 +9,7 @@ videos:
   - EAYPF9ucqy0 # Bao giờ đủ lớn
   - BfCNG8vk5cU # Long Live (The Eras Tour)
   - oyHp_wElxpU # Có Hẹn Với Thanh Xuân!
+  - 7PA-ka4lOSA # Way Back Home
 ---
 
 <style>

@@ -2,6 +2,7 @@
 layout: page
 title: Model-free 3D Object Reconstruction
 description: Master's Thesis Student · 01/2026 – 10/2026
+img: assets/img/projects/zeiss-2026.jpg
 importance: 1
 category: Work
 ---
