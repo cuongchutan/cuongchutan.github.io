@@ -1,0 +1,1147 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Cubic Drone</title>
+    <style>
+      /* Same tokens as the thesis animation; the viewport stays a dark "screen" in both themes. */
+      :root {
+        --bg: transparent;
+        --panel: #ffffff;
+        --line: rgba(0, 0, 0, 0.12);
+        --fg: #111111;
+        --muted: #6b6b6b;
+        --accent: #b509ac;
+        --warn: #b8691a;
+        --screen: #0b0d10;
+        --font: "Roboto", "Segoe UI", Helvetica, Arial, sans-serif;
+        --mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+        color-scheme: light;
+      }
+      :root[data-theme="dark"] {
+        --panel: #212529;
+        --line: #424246;
+        --fg: #e8e8e8;
+        --muted: #9a9a9a;
+        --accent: #2698ba;
+        --warn: #f0a24a;
+        color-scheme: dark;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        background: var(--bg);
+      }
+      body {
+        color: var(--fg);
+        font: 15px/1.55 var(--font);
+      }
+      [hidden] {
+        display: none !important;
+      }
+      .wrap {
+        display: grid;
+        gap: 16px;
+        padding: 4px 2px 8px;
+      }
+      .cases {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 8px;
+      }
+      .case {
+        all: unset;
+        cursor: pointer;
+        padding: 9px 12px;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: var(--panel);
+        min-width: 0;
+      }
+      .case:focus-visible,
+      .btn:focus-visible,
+      .node:focus-visible,
+      .chip:focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 2px;
+      }
+      .case[aria-pressed="true"] {
+        border-color: var(--accent);
+        box-shadow: inset 0 0 0 1px var(--accent);
+      }
+      .case b {
+        display: block;
+        font-weight: 600;
+        font-size: 14px;
+        line-height: 1.25;
+      }
+      .case span {
+        display: block;
+        font-size: 12.5px;
+        color: var(--muted);
+      }
+      .rail {
+        position: relative;
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 6px;
+        padding-top: 12px;
+      }
+      .rail::before {
+        content: "";
+        position: absolute;
+        left: 12%;
+        right: 12%;
+        top: 19px;
+        height: 2px;
+        background: var(--line);
+      }
+      .node {
+        all: unset;
+        cursor: pointer;
+        position: relative;
+        display: grid;
+        justify-items: center;
+        gap: 5px;
+        text-align: center;
+        min-width: 0;
+      }
+      .dot {
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        background: var(--panel);
+        border: 2px solid var(--line);
+        z-index: 1;
+      }
+      .node.done .dot {
+        border-color: var(--accent);
+        background: color-mix(in srgb, var(--accent) 35%, var(--panel));
+      }
+      .node.on .dot {
+        border-color: var(--accent);
+        background: var(--accent);
+      }
+      .node small {
+        font: 600 11px/1 var(--mono);
+        letter-spacing: 0.08em;
+        color: var(--muted);
+        text-transform: uppercase;
+      }
+      .node.on small {
+        color: var(--fg);
+      }
+      .bar {
+        display: block;
+        height: 3px;
+        width: 70%;
+        background: var(--line);
+        border-radius: 2px;
+        position: relative;
+        overflow: hidden;
+      }
+      .bar::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        width: var(--p, 0%);
+        background: var(--accent);
+      }
+      .view {
+        position: relative;
+        aspect-ratio: 16 / 10;
+        background: var(--screen);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        overflow: hidden;
+      }
+      .view canvas {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+      }
+      .hud {
+        position: absolute;
+        left: 10px;
+        top: 9px;
+        right: 10px;
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+        font: 500 11.5px/1.3 var(--mono);
+        color: #d3d8de;
+        pointer-events: none;
+      }
+      .hud span {
+        background: rgba(10, 12, 15, 0.72);
+        padding: 4px 8px;
+        border-radius: 6px;
+      }
+      .controls {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        margin-top: 10px;
+        flex-wrap: wrap;
+      }
+      .btn {
+        all: unset;
+        cursor: pointer;
+        font-size: 13px;
+        line-height: 1;
+        padding: 8px 12px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--panel);
+      }
+      .chips {
+        display: flex;
+        justify-content: center;
+        flex-wrap: wrap;
+        gap: 6px 8px;
+        margin-top: 10px;
+      }
+      .chip {
+        all: unset;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 12.5px;
+        padding: 4px 10px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        background: var(--panel);
+      }
+      .chip i {
+        width: 14px;
+        height: 4px;
+        border-radius: 2px;
+        box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.25);
+      }
+      .chip[aria-pressed="false"] {
+        opacity: 0.45;
+      }
+      .chip.static {
+        cursor: default;
+      }
+      .info {
+        display: grid;
+        gap: 12px;
+        min-width: 0;
+      }
+      .info .num {
+        font: 600 12px/1 var(--mono);
+        color: var(--accent);
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+      }
+      .info h3 {
+        font-size: 22px;
+        line-height: 1.2;
+        font-weight: 500;
+        margin: 0;
+      }
+      .info p {
+        margin: 0;
+        color: var(--muted);
+      }
+      .tables {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px 24px;
+      }
+      .tables h4 {
+        margin: 0 0 4px;
+        font: 600 11px/1.4 var(--mono);
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+      dl {
+        margin: 0;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        border-top: 1px solid var(--line);
+      }
+      dl div {
+        display: contents;
+      }
+      dt,
+      dd {
+        padding: 8px 0;
+        border-bottom: 1px solid var(--line);
+      }
+      dt {
+        color: var(--muted);
+        font-size: 13.5px;
+        padding-right: 12px;
+      }
+      dd {
+        margin: 0;
+        font: 600 14px/1.4 var(--mono);
+        font-variant-numeric: tabular-nums;
+        text-align: right;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13.5px;
+      }
+      th,
+      td {
+        padding: 7px 0;
+        border-bottom: 1px solid var(--line);
+        text-align: right;
+      }
+      th {
+        font-weight: 400;
+        color: var(--muted);
+      }
+      th:first-child,
+      td:first-child {
+        text-align: left;
+      }
+      td {
+        font: 600 14px/1.4 var(--mono);
+        font-variant-numeric: tabular-nums;
+      }
+      td:first-child {
+        font: 400 13.5px/1.4 var(--font);
+      }
+      th + th,
+      td + td {
+        padding-left: 14px;
+      }
+      tr.me td {
+        color: var(--accent);
+      }
+      thead tr {
+        border-top: 1px solid var(--line);
+      }
+      .note {
+        font-size: 13px;
+        color: var(--muted);
+        border-left: 3px solid var(--warn);
+        padding-left: 10px;
+      }
+      .tables.one {
+        grid-template-columns: 1fr;
+      }
+      @media (max-width: 560px) {
+        .view {
+          aspect-ratio: 1 / 1;
+        }
+        #hudR {
+          display: none;
+        }
+      }
+      @media (max-width: 760px) {
+        .tables,
+        .cases {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <nav class="rail" id="rail" aria-label="Steps"></nav>
+
+      <div>
+        <div class="view">
+          <canvas id="cv" aria-label="Animation of the current step"></canvas>
+          <div class="hud"><span id="hudL"></span><span id="hudR"></span></div>
+        </div>
+        <div class="chips" id="chips"></div>
+        <div class="controls">
+          <button class="btn" id="play">Pause</button>
+          <button class="btn" id="prev">Previous</button>
+          <button class="btn" id="next">Next</button>
+        </div>
+      </div>
+
+      <div class="info">
+        <div class="num" id="snum"></div>
+        <h3 id="stitle"></h3>
+        <p id="stext"></p>
+        <div class="tables">
+          <div>
+            <h4 id="h1"></h4>
+            <dl id="f1"></dl>
+          </div>
+          <div>
+            <h4 id="h2"></h4>
+            <dl id="f2"></dl>
+          </div>
+        </div>
+        <p class="note" id="snote"></p>
+      </div>
+    </div>
+
+    <script>
+      const FRAME = "cubic";
+      // Values below are taken from the bachelor's thesis (design tables 2.5 and 4.1)
+      const H = 200, // arm frame length and width, mm
+        HF = 40; // arm frame height, mm
+      const LINK = { AB: 102.8, BC: 59.4, DC: 111.8034, AD: 79.805 }; // four-bar link lengths, mm
+      const A0 = Math.atan(50 / 62.2); // angle of the servo crank AB when the arm is flat
+      const MASS = 1.0, // kg, about 660 g printed frame plus parts
+        G = 9.81,
+        CF = 0.56e-6, // thrust coefficient, N s^2 / rad^2
+        W_MAX = 851 * Math.PI; // rad/s, BR2204 2300KV
+      const T_MAX = CF * W_MAX ** 2; // max thrust per motor, N
+      const ETA_LIM = Math.acos((MASS * G) / (4 * T_MAX)); // steepest equal arm angle that can still hover
+      const DEG = Math.PI / 180;
+      const COL = {
+        arm: "#e05a4f",
+        body: "#e8c547",
+        prop: "#9fd3ff",
+        up: "#69c48a",
+        side: "#98a0ab",
+        servo: "#f0a24a",
+        bad: "#ff5a5a",
+        ref: "#ffd166",
+      };
+      const FLOW = [
+        {
+          d: 12000,
+          node: "Fold",
+          t: "A quadcopter that folds into a cube",
+          hud: "CUBIC DRONE · arms fold from 0° to 90°",
+          text: "Each of the four arms is a square frame that carries one motor and propeller. The arms hinge on the edges of the body. Folded down, they close into a 200 mm cube that protects the propellers; opened flat, the drone flies like a normal quadcopter. In between, the arm angles can change during flight, for example to slip through a narrow gap.",
+        },
+        {
+          d: 12000,
+          node: "Linkage",
+          t: "One servo per arm, through a four-bar linkage",
+          hud: "FOUR-BAR LINKAGE · side cut through one arm",
+          text: "A servo inside the body turns the short crank AB. The coupler BC pushes on point C under the arm, and the arm swings about its hinge D. AD and DC are hidden inside the body and the arm. I derived the linkage kinematics and wrote a MATLAB search over every set of link lengths that folds into the cube without collisions, then chose the most compact one.",
+        },
+        {
+          d: 12000,
+          node: "Thrust",
+          t: "Tilted arms cost thrust",
+          hud: "HOVER · side view, two arms shown",
+          text: "When an arm tilts by η, its propeller pushes along the tilted axis. Only the vertical part, T·cos η, holds the drone up; the sideways parts of opposite arms cancel. To keep hovering, every motor must spin faster as the arms tilt, until it reaches its maximum speed. With these motors and a 1 kg drone, that happens at η ≈ 52°.",
+        },
+        {
+          d: 10000,
+          node: "Height hold",
+          t: "Holding attitude and height with folded arms",
+          hud: "HEIGHT CONTROL · climb from 10 m to 16 m",
+          text: "I modelled the drone as a rigid body with 12 equations of motion and 8 inputs: four motor speeds and four arm angles. A PID controller holds roll, pitch, yaw and height, the quantities a gyroscope and a barometric altimeter can measure. Here the drone climbs 6 m with its arms at 45°, 30°, 45° and 30°. The arms at 45° need faster motors, and the climb is slower than with flat arms because less thrust points up.",
+        },
+      ];
+      const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+      // ---------- theme: follow the embedding page (al-folio sets data-theme on <html>), else the OS
+      function applyTheme() {
+        let t = null;
+        try {
+          t = parent !== window && parent.document.documentElement.getAttribute("data-theme");
+        } catch (e) {}
+        if (!t) t = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+        document.documentElement.setAttribute("data-theme", t);
+      }
+      applyTheme();
+      try {
+        if (parent !== window)
+          new MutationObserver(applyTheme).observe(parent.document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+      } catch (e) {}
+      matchMedia("(prefers-color-scheme: dark)").addEventListener("change", applyTheme);
+
+      function postHeight() {
+        if (parent !== window)
+          parent.postMessage({ thesisFrame: FRAME, h: Math.ceil(document.querySelector(".wrap").getBoundingClientRect().height) + 4 }, "*");
+      }
+      new ResizeObserver(postHeight).observe(document.querySelector(".wrap"));
+
+      // ---------- four-bar linkage (thesis eq. 2.7), in the arm's side plane with y pointing down
+      function linkage(s) {
+        const a1 = A0 + s,
+          { AB, BC, DC, AD } = LINK;
+        const DB = Math.hypot(AD - AB * Math.cos(a1), AB * Math.sin(a1));
+        const a3 = Math.PI - Math.acos((AD - AB * Math.cos(a1)) / DB) - Math.acos((DB * DB + DC * DC - BC * BC) / (2 * DB * DC));
+        // the kinematic frame (A at the origin, AD along x) turned by α0 so that AB is level when the arm is flat
+        const rot = ([x, y]) => [x * Math.cos(A0) + y * Math.sin(A0), -x * Math.sin(A0) + y * Math.cos(A0)];
+        const B = rot([AB * Math.cos(a1), AB * Math.sin(a1)]),
+          D = rot([AD, 0]),
+          C = rot([AD + DC * Math.cos(a3), DC * Math.sin(a3)]);
+        // C sits 100 mm along the arm and 50 mm below its top face, so the arm is DC turned back by atan(50/100)
+        const eta = Math.atan2(C[1] - D[1], C[0] - D[0]) - Math.atan(0.5);
+        return { A: [0, 0], B, C, D, eta };
+      }
+      const S_MAX = 100 * DEG; // servo turn that folds the arm to 90°
+      const SERVO_FOR = []; // servo turn for each whole degree of arm angle
+      for (let s = 0, k = 0; k <= 90; s += 0.0005) {
+        if (linkage(s).eta >= k * DEG - 1e-9 || s >= S_MAX) SERVO_FOR[k++] = s;
+      }
+
+      // ---------- height hold: thrust stays vertical-balanced, so the climb reduces to one axis
+      const SIM_T = 8,
+        SIM_DT = 1 / 200;
+      function climb(etas) {
+        const cs = etas.map((e) => Math.cos(e * DEG)),
+          fMax = T_MAX * cs.reduce((a, b) => a + b, 0);
+        const KP = 2,
+          KD = 2.4;
+        let z = 10,
+          v = 0;
+        const out = [];
+        for (let k = 0; k <= SIM_T / SIM_DT; k++) {
+          const t = k * SIM_DT,
+            e = (t < 1 ? 10 : 16) - z,
+            F = MASS * (G + KP * e - KD * v),
+            Fs = Math.min(Math.max(F, 0), fMax); // the motors cannot push harder than their maximum speed
+          // each motor gives the same vertical push, so roll, pitch and yaw stay balanced
+          out.push({ t, z, w: cs.map((c) => Math.sqrt(Fs / 4 / (CF * c))), sat: F > fMax });
+          v += (Fs / MASS - G) * SIM_DT;
+          z += v * SIM_DT;
+        }
+        return { out, aMax: fMax / MASS - G };
+      }
+      const RUN = { flat: climb([0, 0, 0, 0]), fold: climb([45, 30, 45, 30]) };
+      const at = (run, t) => run.out[Math.min(run.out.length - 1, Math.max(0, Math.round(t / SIM_DT)))];
+      const settle = (run) => {
+        for (let k = run.out.length - 1; k >= 0; k--) if (Math.abs(run.out[k].z - 16) > 0.12) return run.out[k].t - 1;
+        return 0;
+      };
+
+      // ---------- state, rail and info panel
+      let step = 0,
+        t0 = performance.now(),
+        playing = !reduce,
+        pausedAt = 0;
+      const rail = document.getElementById("rail");
+      FLOW.forEach((f, i) => {
+        const b = document.createElement("button");
+        b.className = "node";
+        b.innerHTML = `<span class="dot"></span><small>${f.node}</small><span class="bar"></span>`;
+        b.addEventListener("click", () => go(i));
+        rail.appendChild(b);
+      });
+      const nodes = [...rail.querySelectorAll(".node")];
+
+      const row = (a, b) => `<div><dt>${a}</dt><dd>${b}</dd></div>`;
+      const rpm = (w) => Math.round((w * 60) / (2 * Math.PI) / 10) * 10;
+      const PANELS = [
+        [
+          "Frame",
+          [
+            ["Arm frame", `${H} × ${H} × ${HF} mm`],
+            ["Folded", `${H} mm cube`],
+            ["Open, across", `≈ ${3 * H} mm`],
+            ["Mass (estimated)", `${MASS.toFixed(1)} kg`],
+          ],
+          "Parts",
+          [
+            ["Motors · 4×", "BR2204 2300KV"],
+            ["Propellers · 4×", "6-inch, 3 blades"],
+            ["Arm servos · 4×", "MG996R"],
+            ["Frame", "3D-printed ABS"],
+          ],
+          "Designed in Siemens NX and simulated in MATLAB. The drone was not built during the thesis.",
+        ],
+        [
+          "Link lengths",
+          [
+            ["AB · servo crank", `${LINK.AB.toFixed(1)} mm`],
+            ["BC · coupler", `${LINK.BC.toFixed(1)} mm`],
+            ["DC · inside the arm", `${LINK.DC.toFixed(1)} mm`],
+            ["AD · inside the body", `${LINK.AD.toFixed(1)} mm`],
+          ],
+          "Motion",
+          [
+            ["Arm angle", "0° → 90°"],
+            ["Servo turn", `0° → ${Math.round(S_MAX / DEG)}°`],
+            ["Motors per arm", "1 servo"],
+            ["Printing tolerance", "0.1 mm"],
+          ],
+          "The linkage drawn here is computed from these lengths with the thesis equations, so the arm angle is exact for each servo angle.",
+        ],
+        [
+          "Drone",
+          [
+            ["Mass", `${MASS.toFixed(1)} kg`],
+            ["Max thrust", `4 × ${Math.round((T_MAX / G) * 1000)} g`],
+            ["Max motor speed", `${rpm(W_MAX).toLocaleString("en-US")} rpm`],
+            ["Hover, flat arms", `${Math.round((Math.sqrt((MASS * G) / 4 / CF) / W_MAX) * 100)} % of max`],
+          ],
+          "Hover limit",
+          [
+            ["Condition", "4·T_max·cos η ≥ m·g"],
+            ["cos η at least", ((MASS * G) / (4 * T_MAX)).toFixed(3)],
+            ["Steepest arm angle", `${(ETA_LIM / DEG).toFixed(1)}°`],
+            ["Used in simulations", "≤ 52°"],
+          ],
+          "Both arms tilt by the same angle here. The thrust needed per motor is m·g / (4·cos η).",
+        ],
+        [
+          "Controller",
+          [
+            ["Inputs", "4 motors + 4 arms"],
+            ["Controlled", "roll, pitch, yaw, height"],
+            ["Sensors", "gyroscope, altimeter"],
+            ["Model", "12 equations of motion"],
+          ],
+          "This climb",
+          [
+            ["Arms", "45° · 30° · 45° · 30°"],
+            ["Max climb accel., flat", `${RUN.flat.aMax.toFixed(1)} m/s²`],
+            ["Max climb accel., folded", `${RUN.fold.aMax.toFixed(1)} m/s²`],
+            ["Settles within 12 cm", `${settle(RUN.flat).toFixed(1)} s vs ${settle(RUN.fold).toFixed(1)} s`],
+          ],
+          "Re-simulated in your browser with the thesis's mass and motor limits and a PD controller on height. The thesis's own MATLAB runs are in the clips below.",
+        ],
+      ];
+      function renderPanel() {
+        const f = FLOW[step],
+          p = PANELS[step];
+        document.getElementById("snum").textContent = `Step ${step + 1} / ${FLOW.length} · ${f.node}`;
+        document.getElementById("stitle").textContent = f.t;
+        document.getElementById("stext").textContent = f.text;
+        document.getElementById("hudL").textContent = f.hud;
+        document.getElementById("hudR").textContent = "Bachelor's thesis · HUST 2021";
+        document.getElementById("h1").textContent = p[0];
+        document.getElementById("f1").innerHTML = p[1].map((r) => row(...r)).join("");
+        document.getElementById("h2").textContent = p[2];
+        document.getElementById("f2").innerHTML = p[3].map((r) => row(...r)).join("");
+        document.getElementById("snote").textContent = p[4];
+        const chip = (n, c) => `<span class="chip static"><i style="background:${c}"></i>${n}</span>`;
+        const CH = [
+          [
+            ["Arm frame", COL.arm],
+            ["Body", COL.body],
+            ["Propeller", COL.prop],
+          ],
+          [
+            ["Servo crank AB", COL.servo],
+            ["Coupler BC", "#e8edf2"],
+            ["Hidden links AD, DC", COL.side],
+            ["Arm", COL.arm],
+          ],
+          [
+            ["Thrust T", "#e8edf2"],
+            ["Lifts: T·cos η", COL.up],
+            ["Cancels: T·sin η", COL.side],
+          ],
+          [
+            ["Arms 0°", COL.side],
+            ["Arms 45° / 30°", COL.up],
+            ["Target height", COL.ref],
+          ],
+        ];
+        document.getElementById("chips").innerHTML = CH[step].map((c) => chip(...c)).join("");
+        nodes.forEach((nd, i) => {
+          nd.classList.toggle("on", i === step);
+          nd.classList.toggle("done", i < step);
+          nd.setAttribute("aria-current", i === step ? "step" : "false");
+        });
+        postHeight();
+      }
+      function go(i) {
+        step = (i + FLOW.length) % FLOW.length;
+        t0 = performance.now();
+        pausedAt = 0;
+        renderPanel();
+      }
+      document.getElementById("prev").onclick = () => go(step - 1);
+      document.getElementById("next").onclick = () => go(step + 1);
+      const playBtn = document.getElementById("play");
+      playBtn.onclick = () => {
+        playing = !playing;
+        playBtn.textContent = playing ? "Pause" : "Play";
+        if (playing) t0 = performance.now() - pausedAt;
+        else pausedAt = performance.now() - t0;
+      };
+      playBtn.textContent = playing ? "Pause" : "Play";
+
+      // ---------- drawing helpers
+      const cv = document.getElementById("cv"),
+        ctx = cv.getContext("2d");
+      function fit() {
+        const r = cv.getBoundingClientRect(),
+          d = devicePixelRatio || 1;
+        if (cv.width !== Math.round(r.width * d) || cv.height !== Math.round(r.height * d)) {
+          cv.width = Math.round(r.width * d);
+          cv.height = Math.round(r.height * d);
+        }
+        ctx.setTransform(d, 0, 0, d, 0, 0);
+        return [r.width, r.height];
+      }
+      const ease = (x) => (x < 0 ? 0 : x > 1 ? 1 : x * x * (3 - 2 * x));
+      const ramp = (t, a, b) => ease((t - a) / (b - a));
+      const MONO = "ui-monospace, Menlo, Consolas, monospace";
+      function label(txt, x, y, col = "#d3d8de", align = "left", font = `500 11.5px ${MONO}`) {
+        ctx.font = font;
+        ctx.fillStyle = col;
+        ctx.textAlign = align;
+        ctx.fillText(txt, x, y);
+        ctx.textAlign = "left";
+      }
+      function line(pts, col, w = 1.5, dash) {
+        ctx.beginPath();
+        pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+        ctx.strokeStyle = col;
+        ctx.lineWidth = w;
+        ctx.setLineDash(dash || []);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+      function poly(pts, fill, stroke, w = 1.2) {
+        ctx.beginPath();
+        pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+        ctx.closePath();
+        if (fill) {
+          ctx.fillStyle = fill;
+          ctx.fill();
+        }
+        if (stroke) {
+          ctx.strokeStyle = stroke;
+          ctx.lineWidth = w;
+          ctx.stroke();
+        }
+      }
+      function arrow(x0, y0, x1, y1, col, w = 2.2, dash) {
+        const a = Math.atan2(y1 - y0, x1 - x0),
+          hl = Math.min(9, Math.hypot(x1 - x0, y1 - y0) * 0.45);
+        line(
+          [
+            [x0, y0],
+            [x1, y1],
+          ],
+          col,
+          w,
+          dash
+        );
+        poly(
+          [
+            [x1, y1],
+            [x1 - hl * Math.cos(a - 0.4), y1 - hl * Math.sin(a - 0.4)],
+            [x1 - hl * Math.cos(a + 0.4), y1 - hl * Math.sin(a + 0.4)],
+          ],
+          col
+        );
+      }
+      // chart and scene areas: side by side on wide screens, stacked on narrow ones
+      function split(W, H, frac = 0.36) {
+        const top = 36,
+          bot = 30,
+          pad = 12;
+        if (W >= 560) {
+          const cw = Math.min(300, W * frac);
+          return { scene: [pad, top, W - cw - 3 * pad, H - top - bot], chart: [W - cw - pad, top + 6, cw, Math.min(H - top - bot - 12, cw * 0.95)] };
+        }
+        const ch = (H - top - bot) * 0.4;
+        return { scene: [pad, top, W - 2 * pad, H - top - bot - ch - 8], chart: [pad, H - bot - ch, W - 2 * pad, ch] };
+      }
+      // 2D camera for side views in mm (y down)
+      let CAM = { s: 1, ox: 0, oy: 0 };
+      function camera(box, x0, y0, x1, y1) {
+        const [bx, by, bw, bh] = box,
+          s = Math.min(bw / (x1 - x0), bh / (y1 - y0));
+        CAM = { s, ox: bx + (bw - s * (x1 - x0)) / 2 - s * x0, oy: by + (bh - s * (y1 - y0)) / 2 - s * y0 };
+      }
+      const S = ([x, y]) => [CAM.ox + CAM.s * x, CAM.oy + CAM.s * y];
+      function axes(box, xr, yr, xt, yt, xl, yl) {
+        const [x, y, w, h] = box,
+          l = x + 38,
+          r = x + w - 10,
+          t = y + 22,
+          b = y + h - 36;
+        const X = (v) => l + ((v - xr[0]) / (xr[1] - xr[0])) * (r - l),
+          Y = (v) => b - ((v - yr[0]) / (yr[1] - yr[0])) * (b - t);
+        ctx.fillStyle = "rgba(22,26,32,.92)";
+        ctx.beginPath();
+        ctx.roundRect(x, y, w, h, 8);
+        ctx.fill();
+        for (const v of yt) {
+          line(
+            [
+              [l, Y(v)],
+              [r, Y(v)],
+            ],
+            "rgba(255,255,255,.08)",
+            1
+          );
+          label(String(v), l - 6, Y(v) + 4, "#98a0ab", "right", `500 10.5px ${MONO}`);
+        }
+        for (const v of xt) label(String(v), X(v), b + 14, "#98a0ab", "center", `500 10.5px ${MONO}`);
+        label(yl, x + 10, y + 14, "#d3d8de", "left", `500 11px ${MONO}`);
+        label(xl, r, b + 29, "#98a0ab", "right", `500 10.5px ${MONO}`);
+        return { X, Y, l, r, t, b };
+      }
+
+      // ---------- 3D drone (mm, z up), drawn back to front
+      let VIEW = { yaw: 0.6, pitch: 0.42, s: 1, cx: 0, cy: 0 };
+      function P([x, y, z]) {
+        const c = Math.cos(VIEW.yaw),
+          sn = Math.sin(VIEW.yaw),
+          X = x * c - y * sn,
+          Y = x * sn + y * c,
+          cp = Math.cos(VIEW.pitch),
+          sp = Math.sin(VIEW.pitch);
+        return [VIEW.cx + X * VIEW.s, VIEW.cy - (z * cp + Y * sp) * VIEW.s, Y * cp - z * sp];
+      }
+      function drone(etas, spin, thrust) {
+        const items = [],
+          h = H / 2;
+        const face = (pts, fill, stroke) => items.push({ pts: pts.map(P), fill, stroke });
+        const box = (x0, x1, y0, y1, z0, z1, fill, stroke) => {
+          const c = [
+            [x0, y0],
+            [x1, y0],
+            [x1, y1],
+            [x0, y1],
+          ];
+          for (let i = 0; i < 4; i++) {
+            const [a, b] = [c[i], c[(i + 1) % 4]];
+            face(
+              [
+                [...a, z0],
+                [...b, z0],
+                [...b, z1],
+                [...a, z1],
+              ],
+              fill,
+              stroke
+            );
+          }
+          face(
+            c.map((p) => [...p, z1]),
+            fill,
+            stroke
+          );
+          face(
+            c.map((p) => [...p, z0]),
+            fill,
+            stroke
+          );
+        };
+        const bodyFill = "rgba(232,197,71,.22)";
+        face(
+          [
+            [-h, -h, 0],
+            [h, -h, 0],
+            [h, h, 0],
+            [-h, h, 0],
+          ],
+          "rgba(232,197,71,.30)",
+          COL.body
+        );
+        box(-45, 45, -45, 45, -50, -2, bodyFill, "rgba(232,197,71,.7)");
+        box(-10, 10, -10, 10, -175, -50, bodyFill, "rgba(232,197,71,.6)");
+        box(-h + HF, h - HF, -h + HF, h - HF, -H + 2, -175, bodyFill, "rgba(232,197,71,.7)");
+        for (let i = 0; i < 4; i++) {
+          const a = (i * Math.PI) / 2,
+            d = [Math.cos(a), Math.sin(a)],
+            tg = [-Math.sin(a), Math.cos(a)],
+            e = etas[i],
+            ce = Math.cos(e),
+            se = Math.sin(e);
+          // arm point: u along the arm, v across it, w normal to it (up when flat)
+          const pt = (u, v, w) => {
+            const r = h + u * ce + w * se,
+              z = -u * se + w * ce;
+            return [d[0] * r + tg[0] * v, d[1] * r + tg[1] * v, z];
+          };
+          const outer = [
+              [0, -h],
+              [H, -h],
+              [H, h],
+              [0, h],
+            ],
+            inner = [
+              [HF, -h + HF],
+              [H - HF, -h + HF],
+              [H - HF, h - HF],
+              [HF, h - HF],
+            ];
+          for (let k = 0; k < 4; k++) {
+            const o0 = outer[k],
+              o1 = outer[(k + 1) % 4],
+              i0 = inner[k],
+              i1 = inner[(k + 1) % 4];
+            face([pt(o0[0], o0[1], 0), pt(o1[0], o1[1], 0), pt(i1[0], i1[1], -HF), pt(i0[0], i0[1], -HF)], "rgba(224,90,79,.28)", COL.arm);
+          }
+          // propeller disc and blades
+          const R = 76,
+            disc = [];
+          for (let k = 0; k < 28; k++) disc.push(pt(H / 2 + R * Math.cos((k / 28) * 2 * Math.PI), R * Math.sin((k / 28) * 2 * Math.PI), -10));
+          face(disc, spin ? "rgba(159,211,255,.14)" : null, spin ? "rgba(159,211,255,.45)" : null);
+          for (let k = 0; k < 3; k++) {
+            const b = (spin || 0) * (i % 2 ? -1 : 1) + (k * 2 * Math.PI) / 3 + i;
+            const p0 = P(pt(H / 2, 0, -10)),
+              p1 = P(pt(H / 2 + R * Math.cos(b), R * Math.sin(b), -10));
+            items.push({ line: [p0, p1], col: spin ? "rgba(159,211,255,.55)" : "rgba(159,211,255,.8)", w: 1.4, z: (p0[2] + p1[2]) / 2 - 1 });
+          }
+          if (thrust && thrust[i] > 0) {
+            const p0 = P(pt(H / 2, 0, -10)),
+              p1 = P(pt(H / 2, 0, -10 + thrust[i]));
+            items.push({ arrow: [p0, p1], col: "#e8edf2", z: Math.min(p0[2], p1[2]) - 2 });
+          }
+        }
+        for (const it of items) if (it.pts) it.z = it.pts.reduce((s, p) => s + p[2], 0) / it.pts.length;
+        items.sort((a, b) => b.z - a.z);
+        for (const it of items) {
+          if (it.pts) poly(it.pts, it.fill, it.stroke, 1.1);
+          else if (it.line) line(it.line, it.col, it.w);
+          else arrow(it.arrow[0][0], it.arrow[0][1], it.arrow[1][0], it.arrow[1][1], it.col, 2);
+        }
+      }
+
+      // ---------- step 1: fold and unfold
+      function drawFold(W, Hh, T) {
+        const t = T % 12,
+          open = ramp(t, 1.5, 5) - ramp(t, 8.5, 11),
+          eta = (1 - open) * 90 * DEG,
+          spin = open > 0.98 ? T * 40 : 0;
+        VIEW = {
+          yaw: 0.55 + T * 0.18,
+          pitch: 0.45,
+          s: Math.min(W / 700, (Hh - 80) / 480),
+          cx: W / 2,
+          cy: Hh * 0.5 + 20 - (1 - open) * 95 * Math.min(W / 700, (Hh - 80) / 480),
+        };
+        drone([eta, eta, eta, eta], spin, null);
+        label(`arm angle η = ${Math.round(eta / DEG)}°`, 16, Hh - 12, "#d3d8de");
+        label(open < 0.05 ? `folded: ${H} mm cube` : open > 0.95 ? `open: ≈ ${3 * H} mm across` : "unfolding", W - 16, Hh - 12, "#98a0ab", "right");
+      }
+
+      // ---------- step 2: four-bar linkage side cut
+      function drawLinkage(W, Hh, T) {
+        const t = T % 12,
+          s = S_MAX * (ramp(t, 1, 5.5) - ramp(t, 7, 11)),
+          L = linkage(s),
+          eta = Math.max(0, L.eta),
+          { scene, chart } = split(W, Hh);
+        camera(scene, -150, -95, 290, 175);
+        const ce = Math.cos(eta),
+          se = Math.sin(eta),
+          D = L.D;
+        const armPt = (u, w) => S([D[0] + u * ce - w * se, D[1] + u * se + w * ce]);
+        // body: top plate, column and bottom plate (half the drone, centre at x = D - 100)
+        const cx = D[0] - H / 2;
+        poly([S([cx - 110, -50]), S([D[0], -50]), S([D[0], -38]), S([cx - 110, -38])], "rgba(232,197,71,.25)", COL.body);
+        poly([S([cx - 10, -38]), S([cx + 10, -38]), S([cx + 10, 138]), S([cx - 10, 138])], "rgba(232,197,71,.15)", "rgba(232,197,71,.6)");
+        poly([S([cx - 110, 138]), S([D[0] - HF, 138]), S([D[0] - HF, 150]), S([cx - 110, 150])], "rgba(232,197,71,.25)", COL.body);
+        poly([S([-24, -38]), S([24, -38]), S([24, -6]), S([-24, -6])], "rgba(240,162,74,.18)", "rgba(240,162,74,.6)");
+        if (CAM.s > 0.9) {
+          label("servo", ...S([-22, -16]), "#98a0ab", "left", `500 10.5px ${MONO}`);
+          label("body", ...S([cx - 100, -58]), "#98a0ab", "left", `500 10.5px ${MONO}`);
+        }
+        // the arm frame, its motor and propeller
+        poly([armPt(0, 0), armPt(H, 0), armPt(H, HF), armPt(0, HF)], "rgba(224,90,79,.22)", COL.arm, 1.6);
+        poly([armPt(H / 2 - 12, 10), armPt(H / 2 + 12, 10), armPt(H / 2 + 12, 34), armPt(H / 2 - 12, 34)], "rgba(159,211,255,.25)", COL.prop);
+        line([armPt(H / 2 - 76, 8), armPt(H / 2 + 76, 8)], COL.prop, 2.2);
+        label("arm", ...armPt(H - 30, -8), COL.arm, "left", `600 11px ${MONO}`);
+        // links: hidden ones dashed
+        line([S(L.A), S(L.D)], COL.side, 2, [5, 4]);
+        line([S(L.D), S(L.C)], COL.side, 2, [5, 4]);
+        line([S(L.B), S(L.C)], "#e8edf2", 3.2);
+        line([S(L.A), S(L.B)], COL.servo, 4);
+        const sa = S(L.A),
+          r = 26 * CAM.s;
+        ctx.beginPath();
+        ctx.arc(sa[0], sa[1], r, Math.min(0, -s), 0);
+        ctx.strokeStyle = COL.servo;
+        ctx.lineWidth = 1.2;
+        ctx.stroke();
+        for (const [k, p, dx, dy] of [
+          ["A", L.A, -16, 16],
+          ["B", L.B, 8, -8],
+          ["C", L.C, 9, 14],
+          ["D", L.D, -16, -6],
+        ]) {
+          const q = S(p);
+          ctx.beginPath();
+          ctx.arc(q[0], q[1], 4.5, 0, 2 * Math.PI);
+          ctx.fillStyle = "#0b0d10";
+          ctx.fill();
+          ctx.strokeStyle = "#e8edf2";
+          ctx.lineWidth = 1.6;
+          ctx.stroke();
+          label(k, q[0] + dx, q[1] + dy, "#e8edf2", "left", `600 12px ${MONO}`);
+        }
+        // arm angle vs servo turn
+        const ax = axes(chart, [0, 100], [0, 90], [0, 50, 100], [0, 45, 90], "servo turn °", "arm angle η °");
+        const curve = [];
+        for (let k = 0; k <= 90; k += 2) curve.push([ax.X(SERVO_FOR[k] / DEG), ax.Y(k)]);
+        line(curve, COL.arm, 2);
+        const p = [ax.X(s / DEG), ax.Y(eta / DEG)];
+        ctx.beginPath();
+        ctx.arc(p[0], p[1], 4.5, 0, 2 * Math.PI);
+        ctx.fillStyle = COL.servo;
+        ctx.fill();
+        label(`servo ${Math.round(s / DEG)}°  →  arm ${Math.round(eta / DEG)}°`, 16, Hh - 12, "#d3d8de");
+      }
+
+      // ---------- step 3: thrust split while hovering
+      function drawThrust(W, Hh, T) {
+        const t = T % 12,
+          eta = 60 * DEG * (ramp(t, 1, 5.5) - ramp(t, 7.5, 11.5)),
+          { scene, chart } = split(W, Hh),
+          ce = Math.cos(eta),
+          se = Math.sin(eta);
+        camera(scene, -330, -190, 330, 215);
+        const need = Math.sqrt((MASS * G) / (4 * CF * ce)),
+          ok = need <= W_MAX,
+          k = 30; // mm of arrow per newton
+        // body
+        poly([S([-100, -6]), S([100, -6]), S([100, 6]), S([-100, 6])], "rgba(232,197,71,.3)", COL.body);
+        poly([S([-45, 6]), S([45, 6]), S([45, 54]), S([-45, 54])], "rgba(232,197,71,.15)", "rgba(232,197,71,.6)");
+        poly([S([-10, 54]), S([10, 54]), S([10, 175]), S([-10, 175])], "rgba(232,197,71,.12)", "rgba(232,197,71,.5)");
+        poly([S([-60, 175]), S([60, 175]), S([60, 188]), S([-60, 188])], "rgba(232,197,71,.3)", COL.body);
+        for (const sg of [-1, 1]) {
+          const pt = (u, w) => S([sg * (100 + u * ce - w * se), u * se + w * ce]);
+          poly([pt(0, -6), pt(H, -6), pt(H, HF - 6), pt(0, HF - 6)], "rgba(224,90,79,.22)", COL.arm, 1.6);
+          line([pt(H / 2 - 76, 2), pt(H / 2 + 76, 2)], COL.prop, 2.2);
+          const c = [sg * (100 + (H / 2) * ce), (H / 2) * se],
+            Tn = (MASS * G) / 4 / ce,
+            tip = [c[0] + sg * Tn * se * k, c[1] - Tn * ce * k];
+          const [cx, cy] = S(c),
+            [tx, ty] = S(tip),
+            [vx, vy] = S([c[0], c[1] - Tn * ce * k]),
+            [hx, hy] = S([c[0] + sg * Tn * se * k, c[1]]);
+          if (eta > 2 * DEG) {
+            arrow(cx, cy, hx, hy, COL.side, 1.6, [4, 3]);
+            arrow(cx, cy, vx, vy, COL.up, 2.2);
+          }
+          arrow(cx, cy, tx, ty, ok ? "#e8edf2" : COL.bad, 2.6);
+        }
+        label(eta > 8 * DEG ? "sideways parts cancel" : "", ...S([0, -150]), COL.side, "center");
+        // motor speed needed to hover vs arm angle
+        const ax = axes(chart, [0, 60], [0, 30], [0, 30, 52, 60], [0, 10, 20, 30], "arm angle η °", "motor speed, 1000 rpm");
+        const lim = ax.X(ETA_LIM / DEG);
+        ctx.fillStyle = "rgba(255,90,90,.12)";
+        ctx.fillRect(lim, ax.t, ax.r - lim, ax.b - ax.t);
+        line(
+          [
+            [ax.l, ax.Y(rpm(W_MAX) / 1000)],
+            [ax.r, ax.Y(rpm(W_MAX) / 1000)],
+          ],
+          COL.bad,
+          1.2,
+          [4, 3]
+        );
+        label("max", ax.l + 4, ax.Y(rpm(W_MAX) / 1000) - 5, COL.bad, "left", `500 10.5px ${MONO}`);
+        const curve = [];
+        for (let e = 0; e <= 60; e++) curve.push([ax.X(e), ax.Y(Math.min(31, rpm(Math.sqrt((MASS * G) / (4 * CF * Math.cos(e * DEG)))) / 1000))]);
+        line(curve, "#e8edf2", 2);
+        ctx.beginPath();
+        ctx.arc(ax.X(eta / DEG), ax.Y(Math.min(31, rpm(need) / 1000)), 4.5, 0, 2 * Math.PI);
+        ctx.fillStyle = ok ? COL.up : COL.bad;
+        ctx.fill();
+        label(
+          ok
+            ? `η = ${Math.round(eta / DEG)}° · each motor at ${Math.round((need / W_MAX) * 100)} % of max speed`
+            : `η = ${Math.round(eta / DEG)}° · above ${(ETA_LIM / DEG).toFixed(0)}°: cannot hover`,
+          16,
+          Hh - 12,
+          ok ? "#d3d8de" : COL.bad
+        );
+      }
+
+      // ---------- step 4: climb with folded arms vs flat arms
+      function drawClimb(W, Hh, T) {
+        const t = Math.min(T, SIM_T),
+          { scene, chart } = split(W, Hh, 0.42),
+          f = at(RUN.fold, t),
+          fl = at(RUN.flat, t),
+          etas = [45, 30, 45, 30].map((e) => e * DEG);
+        // altitude rail on the left of the scene
+        const [sx, sy, sw, sh] = scene,
+          yOf = (z) => sy + sh - 20 - ((z - 9.5) / 8) * (sh - 40);
+        for (let z = 10; z <= 16; z += 2) {
+          line(
+            [
+              [sx + 30, yOf(z)],
+              [sx + sw, yOf(z)],
+            ],
+            "rgba(255,255,255,.06)",
+            1
+          );
+          label(`${z} m`, sx + 4, yOf(z) + 4, "#98a0ab", "left", `500 10.5px ${MONO}`);
+        }
+        line(
+          [
+            [sx + 30, yOf(16)],
+            [sx + sw, yOf(16)],
+          ],
+          COL.ref,
+          1,
+          [5, 4]
+        );
+        const s = Math.min(sw / 820, sh / 900);
+        VIEW = { yaw: 0.55 + T * 0.12, pitch: 0.35, s, cx: sx + sw / 2 + 12, cy: yOf(f.z) };
+        drone(
+          etas,
+          T * 45,
+          f.w.map((w) => ((CF * w * w) / (CF * W_MAX * W_MAX)) * 160)
+        );
+        // height over time
+        const ax = axes(chart, [0, SIM_T], [9, 17], [0, 2, 4, 6, 8], [10, 12, 14, 16], "time s", "height m");
+        line(
+          [
+            [ax.l, ax.Y(10)],
+            [ax.X(1), ax.Y(10)],
+            [ax.X(1), ax.Y(16)],
+            [ax.r, ax.Y(16)],
+          ],
+          COL.ref,
+          1.2,
+          [5, 4]
+        );
+        for (const [run, col] of [
+          [RUN.flat, COL.side],
+          [RUN.fold, COL.up],
+        ]) {
+          const pts = [];
+          for (let k = 0; k <= t / SIM_DT; k += 10) pts.push([ax.X(run.out[k].t), ax.Y(run.out[k].z)]);
+          line(pts, col, 2);
+        }
+        const w = f.w.map(rpm);
+        label(
+          W >= 560
+            ? `motors: 45° arms ${w[0].toLocaleString("en-US")} rpm · 30° arms ${w[1].toLocaleString("en-US")} rpm${f.sat ? " · at max" : ""}`
+            : `${f.z.toFixed(1)} m · ${w[0].toLocaleString("en-US")} / ${w[1].toLocaleString("en-US")} rpm`,
+          16,
+          Hh - 12,
+          f.sat ? COL.servo : "#d3d8de"
+        );
+        if (W >= 560) label(`height ${f.z.toFixed(2)} m (flat arms ${fl.z.toFixed(2)} m)`, W - 16, Hh - 12, "#98a0ab", "right");
+      }
+
+      let lastNow = performance.now();
+      function tick(now) {
+        const [W, Hh] = fit(),
+          f = FLOW[step];
+        lastNow = now;
+        let el = playing ? now - t0 : pausedAt;
+        if (playing && el > f.d) {
+          go(step + 1);
+          el = 0;
+        }
+        const u = reduce ? 1 : Math.min(el / f.d, 1),
+          T = reduce ? [6, 6, 6, SIM_T][step] : el / 1000;
+        nodes.forEach((nd, i) => nd.querySelector(".bar").style.setProperty("--p", i < step ? "100%" : i === step ? `${u * 100}%` : "0%"));
+        ctx.fillStyle = "#0b0d10";
+        ctx.fillRect(0, 0, W, Hh);
+        if (step === 0) drawFold(W, Hh, T);
+        else if (step === 1) drawLinkage(W, Hh, T);
+        else if (step === 2) drawThrust(W, Hh, T);
+        else drawClimb(W, Hh, T);
+        requestAnimationFrame(tick);
+      }
+      renderPanel();
+      requestAnimationFrame(tick);
+    </script>
+  </body>
+</html>

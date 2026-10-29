@@ -1,0 +1,1343 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>FASTER Planning Concept</title>
+    <style>
+      /* Same tokens as the thesis animation; the viewport stays a dark "screen" in both themes. */
+      :root {
+        --bg: transparent;
+        --panel: #ffffff;
+        --line: rgba(0, 0, 0, 0.12);
+        --fg: #111111;
+        --muted: #6b6b6b;
+        --accent: #b509ac;
+        --warn: #b8691a;
+        --screen: #0b0d10;
+        --font: "Roboto", "Segoe UI", Helvetica, Arial, sans-serif;
+        --mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+        color-scheme: light;
+      }
+      :root[data-theme="dark"] {
+        --panel: #212529;
+        --line: #424246;
+        --fg: #e8e8e8;
+        --muted: #9a9a9a;
+        --accent: #2698ba;
+        --warn: #f0a24a;
+        color-scheme: dark;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        background: var(--bg);
+      }
+      body {
+        color: var(--fg);
+        font: 15px/1.55 var(--font);
+      }
+      [hidden] {
+        display: none !important;
+      }
+      .wrap {
+        display: grid;
+        gap: 16px;
+        padding: 4px 2px 8px;
+      }
+      .cases {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 8px;
+      }
+      .case {
+        all: unset;
+        cursor: pointer;
+        padding: 9px 12px;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: var(--panel);
+        min-width: 0;
+      }
+      .case:focus-visible,
+      .btn:focus-visible,
+      .node:focus-visible,
+      .chip:focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 2px;
+      }
+      .case[aria-pressed="true"] {
+        border-color: var(--accent);
+        box-shadow: inset 0 0 0 1px var(--accent);
+      }
+      .case b {
+        display: block;
+        font-weight: 600;
+        font-size: 14px;
+        line-height: 1.25;
+      }
+      .case span {
+        display: block;
+        font-size: 12.5px;
+        color: var(--muted);
+      }
+      .rail {
+        position: relative;
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 6px;
+        padding-top: 12px;
+      }
+      .rail::before {
+        content: "";
+        position: absolute;
+        left: 12%;
+        right: 12%;
+        top: 19px;
+        height: 2px;
+        background: var(--line);
+      }
+      .node {
+        all: unset;
+        cursor: pointer;
+        position: relative;
+        display: grid;
+        justify-items: center;
+        gap: 5px;
+        text-align: center;
+        min-width: 0;
+      }
+      .dot {
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        background: var(--panel);
+        border: 2px solid var(--line);
+        z-index: 1;
+      }
+      .node.done .dot {
+        border-color: var(--accent);
+        background: color-mix(in srgb, var(--accent) 35%, var(--panel));
+      }
+      .node.on .dot {
+        border-color: var(--accent);
+        background: var(--accent);
+      }
+      .node small {
+        font: 600 11px/1 var(--mono);
+        letter-spacing: 0.08em;
+        color: var(--muted);
+        text-transform: uppercase;
+      }
+      .node.on small {
+        color: var(--fg);
+      }
+      .bar {
+        display: block;
+        height: 3px;
+        width: 70%;
+        background: var(--line);
+        border-radius: 2px;
+        position: relative;
+        overflow: hidden;
+      }
+      .bar::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        width: var(--p, 0%);
+        background: var(--accent);
+      }
+      .view {
+        position: relative;
+        aspect-ratio: 16 / 10;
+        background: var(--screen);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        overflow: hidden;
+      }
+      .view canvas {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+      }
+      .hud {
+        position: absolute;
+        left: 10px;
+        top: 9px;
+        right: 10px;
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+        font: 500 11.5px/1.3 var(--mono);
+        color: #d3d8de;
+        pointer-events: none;
+      }
+      .hud span {
+        background: rgba(10, 12, 15, 0.72);
+        padding: 4px 8px;
+        border-radius: 6px;
+      }
+      .controls {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        margin-top: 10px;
+        flex-wrap: wrap;
+      }
+      .btn {
+        all: unset;
+        cursor: pointer;
+        font-size: 13px;
+        line-height: 1;
+        padding: 8px 12px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--panel);
+      }
+      .chips {
+        display: flex;
+        justify-content: center;
+        flex-wrap: wrap;
+        gap: 6px 8px;
+        margin-top: 10px;
+      }
+      .chip {
+        all: unset;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 12.5px;
+        padding: 4px 10px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        background: var(--panel);
+      }
+      .chip i {
+        width: 14px;
+        height: 4px;
+        border-radius: 2px;
+        box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.25);
+      }
+      .chip[aria-pressed="false"] {
+        opacity: 0.45;
+      }
+      .chip.static {
+        cursor: default;
+      }
+      .info {
+        display: grid;
+        gap: 12px;
+        min-width: 0;
+      }
+      .info .num {
+        font: 600 12px/1 var(--mono);
+        color: var(--accent);
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+      }
+      .info h3 {
+        font-size: 22px;
+        line-height: 1.2;
+        font-weight: 500;
+        margin: 0;
+      }
+      .info p {
+        margin: 0;
+        color: var(--muted);
+      }
+      .tables {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px 24px;
+      }
+      .tables h4 {
+        margin: 0 0 4px;
+        font: 600 11px/1.4 var(--mono);
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+      dl {
+        margin: 0;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        border-top: 1px solid var(--line);
+      }
+      dl div {
+        display: contents;
+      }
+      dt,
+      dd {
+        padding: 8px 0;
+        border-bottom: 1px solid var(--line);
+      }
+      dt {
+        color: var(--muted);
+        font-size: 13.5px;
+        padding-right: 12px;
+      }
+      dd {
+        margin: 0;
+        font: 600 14px/1.4 var(--mono);
+        font-variant-numeric: tabular-nums;
+        text-align: right;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13.5px;
+      }
+      th,
+      td {
+        padding: 7px 0;
+        border-bottom: 1px solid var(--line);
+        text-align: right;
+      }
+      th {
+        font-weight: 400;
+        color: var(--muted);
+      }
+      th:first-child,
+      td:first-child {
+        text-align: left;
+      }
+      td {
+        font: 600 14px/1.4 var(--mono);
+        font-variant-numeric: tabular-nums;
+      }
+      td:first-child {
+        font: 400 13.5px/1.4 var(--font);
+      }
+      th + th,
+      td + td {
+        padding-left: 14px;
+      }
+      tr.me td {
+        color: var(--accent);
+      }
+      thead tr {
+        border-top: 1px solid var(--line);
+      }
+      .note {
+        font-size: 13px;
+        color: var(--muted);
+        border-left: 3px solid var(--warn);
+        padding-left: 10px;
+      }
+      .tables.one {
+        grid-template-columns: 1fr;
+      }
+      @media (max-width: 560px) {
+        .view {
+          aspect-ratio: 1 / 1;
+        }
+        #hudR {
+          display: none;
+        }
+      }
+      @media (max-width: 760px) {
+        .tables,
+        .cases {
+          grid-template-columns: 1fr;
+        }
+      }
+      .cases {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        margin-top: 10px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <nav class="rail" id="rail" aria-label="Steps"></nav>
+
+      <div>
+        <div class="view">
+          <canvas id="cv" aria-label="Animation of the current step"></canvas>
+          <div class="hud"><span id="hudL"></span><span id="hudR"></span></div>
+        </div>
+        <div class="cases" id="cases" hidden>
+          <button class="case" data-k="flat" aria-pressed="true"><b>Arms flat</b><span id="caseFlat"></span></button>
+          <button class="case" data-k="fold" aria-pressed="false"><b>Arms at 50°</b><span id="caseFold"></span></button>
+        </div>
+        <div class="chips" id="chips"></div>
+        <div class="controls">
+          <button class="btn" id="play">Pause</button>
+          <button class="btn" id="prev">Previous</button>
+          <button class="btn" id="next">Next</button>
+        </div>
+      </div>
+
+      <div class="info">
+        <div class="num" id="snum"></div>
+        <h3 id="stitle"></h3>
+        <p id="stext"></p>
+        <div class="tables">
+          <div>
+            <h4 id="h1"></h4>
+            <dl id="f1"></dl>
+          </div>
+          <div>
+            <h4 id="h2"></h4>
+            <dl id="f2"></dl>
+          </div>
+        </div>
+        <p class="note" id="snote"></p>
+      </div>
+    </div>
+
+    <script>
+      const FRAME = "faster";
+      // ---------- world: 30 × 16 m top view, 0.1 m cells (generated, not a real place)
+      const DEG = Math.PI / 180;
+      const RES = 0.1,
+        WW = 30,
+        WH = 16,
+        GW = WW / RES,
+        GH = WH / RES;
+      // FASTER's defaults (faster.yaml): planning radius 4 m, a_max 5 m/s²; speed capped at 3 m/s here
+      const RA = 4,
+        V_MAX = 3,
+        A_FASTER = 5,
+        FOV = 87 * DEG, // depth camera field of view
+        MARGIN = 0.08,
+        REPLAN = 0.25,
+        SENSE = 0.1;
+      // the Cubic Drone: 1 kg, 4 motors of 4.0 N, arm frames 0.2 m on a 0.2 m body
+      const MASS = 1,
+        G = 9.81,
+        T_MAX = 4.0;
+      function config(etaDeg) {
+        const e = etaDeg * DEG,
+          reach = 0.1 + 0.2 * Math.cos(e), // body half-width plus the arm's horizontal length
+          lift = 4 * T_MAX * Math.cos(e);
+        return { eta: etaDeg, reach, r: Math.hypot(reach, 0.1), a: Math.min(A_FASTER, Math.sqrt(Math.max(0, lift * lift - (MASS * G) ** 2)) / MASS) };
+      }
+      const CONF = { flat: config(0), fold: config(50) };
+      const START = [2, 8],
+        GOAL = [28, 8];
+
+      const occTrue = new Uint8Array(GW * GH);
+      const cellOf = (x, y) => [Math.floor(x / RES), Math.floor(y / RES)];
+      const inside = (c, r) => c >= 0 && r >= 0 && c < GW && r < GH;
+      function fillRect(x0, y0, x1, y1) {
+        for (let r = Math.floor(y0 / RES); r < Math.ceil(y1 / RES); r++)
+          for (let c = Math.floor(x0 / RES); c < Math.ceil(x1 / RES); c++) if (inside(c, r)) occTrue[r * GW + c] = 1;
+      }
+      function fillCircle(x, y, rad) {
+        for (let r = Math.floor((y - rad) / RES); r <= Math.ceil((y + rad) / RES); r++)
+          for (let c = Math.floor((x - rad) / RES); c <= Math.ceil((x + rad) / RES); c++)
+            if (inside(c, r) && Math.hypot((c + 0.5) * RES - x, (r + 0.5) * RES - y) <= rad) occTrue[r * GW + c] = 1;
+      }
+      const TREES = [];
+      {
+        fillRect(0, 0, WW, 0.2);
+        fillRect(0, WH - 0.2, WW, WH);
+        fillRect(0, 0, 0.2, WH);
+        fillRect(WW - 0.2, 0, WW, WH);
+        // a wall with a 0.7 m slot in the middle (7.6–8.3 m) and a 1.8 m opening near the top
+        fillRect(14.8, 0, 15.2, 7.6);
+        fillRect(14.8, 8.3, 15.2, 13.0);
+        fillRect(14.8, 14.8, 15.2, WH);
+        let seed = 7;
+        const rnd = () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646;
+        for (let k = 0; TREES.length < 30 && k < 3000; k++) {
+          const x = 3.5 + rnd() * 23,
+            y = 1 + rnd() * 14,
+            rad = 0.25 + rnd() * 0.3;
+          if (Math.abs(x - 15) < 1.8) continue;
+          if (Math.hypot(x - START[0], y - START[1]) < 2 || Math.hypot(x - GOAL[0], y - GOAL[1]) < 2) continue;
+          if (Math.abs(y - 8) < 1.4 && Math.abs(x - 15) < 4) continue; // keep the slot approachable
+          if (Math.abs(y - 13.9) < 1.6 && Math.abs(x - 15) < 4) continue; // and the opening
+          if (TREES.some((t) => Math.hypot(t[0] - x, t[1] - y) < t[2] + rad + 1.3)) continue;
+          TREES.push([x, y, rad]);
+          fillCircle(x, y, rad);
+        }
+      }
+
+      // ---------- binary heap for A*
+      class Heap {
+        constructor() {
+          this.k = [];
+          this.v = [];
+        }
+        push(key, val) {
+          const k = this.k,
+            v = this.v;
+          let i = k.length;
+          k.push(key);
+          v.push(val);
+          while (i > 0) {
+            const p = (i - 1) >> 1;
+            if (k[p] <= k[i]) break;
+            [k[p], k[i]] = [k[i], k[p]];
+            [v[p], v[i]] = [v[i], v[p]];
+            i = p;
+          }
+        }
+        pop() {
+          const k = this.k,
+            v = this.v,
+            top = v[0],
+            lk = k.pop(),
+            lv = v.pop();
+          if (k.length) {
+            k[0] = lk;
+            v[0] = lv;
+            let i = 0;
+            for (;;) {
+              const l = 2 * i + 1,
+                r = l + 1;
+              let m = i;
+              if (l < k.length && k[l] < k[m]) m = l;
+              if (r < k.length && k[r] < k[m]) m = r;
+              if (m === i) break;
+              [k[m], k[i]] = [k[i], k[m]];
+              [v[m], v[i]] = [v[i], v[m]];
+              i = m;
+            }
+          }
+          return top;
+        }
+        get size() {
+          return this.v.length;
+        }
+      }
+
+      // ---------- one simulated flight
+      function Sim(cfg) {
+        const s = {
+          cfg,
+          x: START[0],
+          y: START[1],
+          vx: 0,
+          vy: 0,
+          yaw: 0,
+          t: 0,
+          known: new Uint8Array(GW * GH), // 0 unknown, 1 free, 2 occupied
+          dOcc: new Float32Array(GW * GH), // distance to the nearest known obstacle, m
+          path: null, // global path through free and unknown space
+          safeLen: 0, // how far along the path stays in known free space
+          tSense: 0,
+          tPlan: 0,
+          done: false,
+          trail: [],
+        };
+        s.dOcc.fill(99);
+        sense(s);
+        plan(s);
+        return s;
+      }
+      function sense(s) {
+        const n = 90;
+        for (let k = 0; k <= n; k++) {
+          const a = s.yaw - FOV / 2 + (FOV * k) / n,
+            ca = Math.cos(a),
+            sa = Math.sin(a);
+          for (let d = 0; d <= RA; d += RES / 2) {
+            const [c, r] = cellOf(s.x + ca * d, s.y + sa * d);
+            if (!inside(c, r)) break;
+            const i = r * GW + c;
+            if (occTrue[i]) {
+              s.known[i] = 2;
+              break;
+            }
+            s.known[i] = 1;
+          }
+        }
+        // the space the drone itself occupies is free
+        const [c0, r0] = cellOf(s.x, s.y),
+          k = Math.ceil(s.cfg.r / RES);
+        for (let r = r0 - k; r <= r0 + k; r++)
+          for (let c = c0 - k; c <= c0 + k; c++) if (inside(c, r) && !occTrue[r * GW + c] && !s.known[r * GW + c]) s.known[r * GW + c] = 1;
+      }
+      function distField(s) {
+        const d = s.dOcc,
+          q = Math.SQRT2;
+        for (let i = 0; i < d.length; i++) d[i] = s.known[i] === 2 ? 0 : 99;
+        for (let r = 0; r < GH; r++)
+          for (let c = 0; c < GW; c++) {
+            const i = r * GW + c;
+            if (c > 0) d[i] = Math.min(d[i], d[i - 1] + 1);
+            if (r > 0) {
+              d[i] = Math.min(d[i], d[i - GW] + 1);
+              if (c > 0) d[i] = Math.min(d[i], d[i - GW - 1] + q);
+              if (c < GW - 1) d[i] = Math.min(d[i], d[i - GW + 1] + q);
+            }
+          }
+        for (let r = GH - 1; r >= 0; r--)
+          for (let c = GW - 1; c >= 0; c--) {
+            const i = r * GW + c;
+            if (c < GW - 1) d[i] = Math.min(d[i], d[i + 1] + 1);
+            if (r < GH - 1) {
+              d[i] = Math.min(d[i], d[i + GW] + 1);
+              if (c < GW - 1) d[i] = Math.min(d[i], d[i + GW + 1] + q);
+              if (c > 0) d[i] = Math.min(d[i], d[i + GW - 1] + q);
+            }
+          }
+        for (let i = 0; i < d.length; i++) d[i] *= RES;
+      }
+      // a cell is blocked when a known obstacle is closer than the drone's radius plus a margin
+      const blocked = (s, i) => s.dOcc[i] - RES / 2 < s.cfg.r + MARGIN;
+      function astar(s, start, goal) {
+        const g = new Float32Array(GW * GH).fill(Infinity),
+          from = new Int32Array(GW * GH).fill(-1),
+          heap = new Heap(),
+          [gc, gr] = goal,
+          h = (c, r) => {
+            const dx = Math.abs(c - gc),
+              dy = Math.abs(r - gr);
+            return Math.max(dx, dy) + (Math.SQRT2 - 1) * Math.min(dx, dy);
+          };
+        const si = start[1] * GW + start[0],
+          gi = gr * GW + gc;
+        g[si] = 0;
+        heap.push(h(...start), si);
+        const N = [
+          [1, 0, 1],
+          [-1, 0, 1],
+          [0, 1, 1],
+          [0, -1, 1],
+          [1, 1, Math.SQRT2],
+          [1, -1, Math.SQRT2],
+          [-1, 1, Math.SQRT2],
+          [-1, -1, Math.SQRT2],
+        ];
+        while (heap.size) {
+          const i = heap.pop();
+          if (i === gi) break;
+          const c = i % GW,
+            r = (i / GW) | 0;
+          for (const [dc, dr, w] of N) {
+            const nc = c + dc,
+              nr = r + dr;
+            if (!inside(nc, nr)) continue;
+            const j = nr * GW + nc;
+            // blocked cells are off limits, except to climb out of one the drone has drifted into
+            if (blocked(s, j) && !(blocked(s, i) && s.dOcc[j] > s.dOcc[i])) continue;
+            if (dc && dr && !blocked(s, i) && (blocked(s, r * GW + nc) || blocked(s, nr * GW + c))) continue;
+            const ng = g[i] + w;
+            if (ng < g[j]) {
+              g[j] = ng;
+              from[j] = i;
+              heap.push(ng + h(nc, nr), j);
+            }
+          }
+        }
+        if (from[gi] < 0) return null;
+        const cells = [];
+        for (let i = gi; i >= 0; i = from[i]) cells.push(i);
+        return cells.reverse().map((i) => [((i % GW) + 0.5) * RES, (((i / GW) | 0) + 0.5) * RES]);
+      }
+      // ESCAPE: near the drone, inflated (but not occupied) cells are allowed so it can steer back out of them
+      const ESCAPE = 0.25;
+      function clear(s, a, b, escape = 0) {
+        const L = Math.hypot(b[0] - a[0], b[1] - a[1]),
+          n = Math.ceil(L / (RES / 2));
+        for (let k = 0; k <= n; k++) {
+          const [c, r] = cellOf(a[0] + ((b[0] - a[0]) * k) / n, a[1] + ((b[1] - a[1]) * k) / n);
+          const i = r * GW + c;
+          if (s.known[i] === 2 || (blocked(s, i) && (L * k) / n >= escape)) return false;
+        }
+        return true;
+      }
+      // keep only the corners of the grid path (string pulling)
+      function pull(s, pts) {
+        const out = [pts[0]];
+        let i = 0;
+        while (i < pts.length - 1) {
+          let j = pts.length - 1;
+          while (j > i + 1 && !clear(s, pts[i], pts[j], i ? 0 : ESCAPE)) j--;
+          out.push(pts[j]);
+          i = j;
+        }
+        return out;
+      }
+      function plan(s) {
+        distField(s);
+        const st = cellOf(s.x, s.y);
+        s.path = null;
+        const raw = astar(s, st, cellOf(...GOAL));
+        if (raw) {
+          raw[0] = [s.x, s.y];
+          raw[raw.length - 1] = GOAL.slice();
+          s.path = pull(s, raw);
+        }
+        measureSafe(s);
+      }
+      function measureSafe(s) {
+        s.safeLen = 0;
+        if (!s.path) return;
+        let len = 0;
+        for (let k = 1; k < s.path.length; k++) {
+          const a = s.path[k - 1],
+            b = s.path[k],
+            L = Math.hypot(b[0] - a[0], b[1] - a[1]);
+          for (let d = 0; d <= L; d += RES / 2) {
+            const [c, r] = cellOf(a[0] + ((b[0] - a[0]) * d) / L, a[1] + ((b[1] - a[1]) * d) / L),
+              i = r * GW + c;
+            if (s.known[i] !== 1 || (blocked(s, i) && len + d >= ESCAPE)) {
+              s.safeLen = len + d;
+              return;
+            }
+          }
+          len += L;
+        }
+        s.safeLen = len;
+      }
+      function pathLen(p) {
+        let L = 0;
+        for (let k = 1; k < p.length; k++) L += Math.hypot(p[k][0] - p[k - 1][0], p[k][1] - p[k - 1][1]);
+        return L;
+      }
+      function along(p, d) {
+        for (let k = 1; k < p.length; k++) {
+          const L = Math.hypot(p[k][0] - p[k - 1][0], p[k][1] - p[k - 1][1]);
+          if (d <= L) return [p[k - 1][0] + ((p[k][0] - p[k - 1][0]) * d) / L, p[k - 1][1] + ((p[k][1] - p[k - 1][1]) * d) / L];
+          d -= L;
+        }
+        return p[p.length - 1];
+      }
+      // known free distance straight ahead along the current velocity
+      function aheadFree(s) {
+        const sp = Math.hypot(s.vx, s.vy);
+        if (sp < 0.3) return 99;
+        const ux = s.vx / sp,
+          uy = s.vy / sp;
+        for (let d = 0; d < 6; d += RES / 2) {
+          const [c, r] = cellOf(s.x + ux * d, s.y + uy * d),
+            i = r * GW + c;
+          if (!inside(c, r) || s.known[i] !== 1 || (blocked(s, i) && d > 0.2)) return d;
+        }
+        return 6;
+      }
+      // slow down before sharp corners so the drone stays on its collision-free path
+      function cornerSpeed(s) {
+        const p = s.path;
+        if (p.length < 3) return V_MAX;
+        const a1 = Math.atan2(p[1][1] - p[0][1], p[1][0] - p[0][0]),
+          a2 = Math.atan2(p[2][1] - p[1][1], p[2][0] - p[1][0]),
+          turn = Math.abs(Math.atan2(Math.sin(a2 - a1), Math.cos(a2 - a1))),
+          vc = Math.max(0.6, V_MAX * Math.cos(Math.min(turn, Math.PI / 2)) ** 2);
+        return Math.sqrt(vc * vc + 2 * s.cfg.a * Math.max(0, Math.hypot(p[1][0] - p[0][0], p[1][1] - p[0][1]) - 0.3));
+      }
+      const DT = 1 / 60;
+      function stepSim(s) {
+        if (s.done) return;
+        s.t += DT;
+        if ((s.tSense += DT) >= SENSE) {
+          s.tSense = 0;
+          sense(s);
+        }
+        if ((s.tPlan += DT) >= REPLAN) {
+          s.tPlan = 0;
+          plan(s);
+        }
+        const sp = Math.hypot(s.vx, s.vy),
+          a = s.cfg.a;
+        let dvx = -s.vx,
+          dvy = -s.vy,
+          aim = s.yaw;
+        if (s.path) {
+          // keep a braking distance inside the known free space: the safe backup is always available
+          const room = Math.max(0, Math.min(s.safeLen, aheadFree(s)) - 0.15 - sp * 0.1),
+            toGoal = pathLen(s.path),
+            vCmd = Math.min(V_MAX, Math.sqrt(2 * a * room), Math.sqrt(2 * a * toGoal), cornerSpeed(s)),
+            tgt = along(s.path, 0.35),
+            dx = tgt[0] - s.x,
+            dy = tgt[1] - s.y,
+            L = Math.hypot(dx, dy) || 1;
+          dvx = (dx / L) * vCmd - s.vx;
+          dvy = (dy / L) * vCmd - s.vy;
+          aim = Math.atan2(dy, dx);
+          if (toGoal < 0.15 && sp < 0.2) s.done = true;
+        }
+        const dv = Math.hypot(dvx, dvy),
+          k = Math.min(1, (a * DT) / (dv || 1));
+        s.vx += dvx * k;
+        s.vy += dvy * k;
+        s.x += s.vx * DT;
+        s.y += s.vy * DT;
+        // the camera looks where the drone is heading
+        let dy = aim - s.yaw;
+        dy = Math.atan2(Math.sin(dy), Math.cos(dy));
+        s.yaw += Math.max(-3 * DT, Math.min(3 * DT, dy));
+        if (s.path) {
+          s.path[0] = [s.x, s.y];
+          // drop corners already passed
+          while (s.path.length > 2 && Math.hypot(s.path[1][0] - s.x, s.path[1][1] - s.y) < 0.3 && clear(s, s.path[0], s.path[2], ESCAPE))
+            s.path.splice(1, 1);
+          measureSafe(s);
+        }
+        if (((s.t / DT) | 0) % 6 === 0) s.trail.push([s.x, s.y]);
+      }
+      function hit(s) {
+        const [c, r] = cellOf(s.x, s.y);
+        let m = 99;
+        for (let rr = r - 5; rr <= r + 5; rr++)
+          for (let cc = c - 5; cc <= c + 5; cc++)
+            if (inside(cc, rr) && occTrue[rr * GW + cc]) m = Math.min(m, Math.hypot((cc + 0.5) * RES - s.x, (rr + 0.5) * RES - s.y) - RES / 2);
+        return m;
+      }
+
+      // ---------- results of both flights, computed once on load
+      function fly(cfg, until) {
+        const s = Sim(cfg);
+        let crossY = null;
+        while (!s.done && s.t < 60 && !(until && until(s))) {
+          stepSim(s);
+          if (crossY === null && s.x > 15) crossY = s.y;
+        }
+        return { s, crossY };
+      }
+      const RESULT = {};
+      for (const k of ["flat", "fold"]) {
+        const { s, crossY } = fly(CONF[k]);
+        RESULT[k] = { t: s.t, route: crossY !== null && Math.abs(crossY - 7.95) < 0.3 ? "through the slot" : "around the wall" };
+      }
+      // the moment the flat drone first faces the wall: used by steps 2 and 3
+      const SNAP = fly(CONF.flat, (s) => s.x > 12.6).s;
+
+      const PLAY = 1.5; // step 4 runs at 1.5× real time
+      const COL = { free: [47, 55, 66], unknown: [24, 28, 34], unseen: [52, 58, 68], occ: [232, 237, 242], infl: [40, 112, 132] };
+      const C = {
+        path: "#e8edf2",
+        safe: "#69c48a",
+        stop: "#ffd166",
+        goal: "#ffd166",
+        fov: "rgba(240,162,74,.16)",
+        fovLine: "rgba(240,162,74,.55)",
+        arm: "#e05a4f",
+        body: "#e8c547",
+        whole: "#40c8e6",
+      };
+      const FLOW = [
+        {
+          d: 9000,
+          node: "Sense",
+          t: "It only knows what its camera has seen",
+          hud: "DEPTH CAMERA · 87° view · 4 m range",
+          text: "FASTER is a planner from MIT for flying fast through places nobody has mapped. A depth camera looks ahead, and each frame marks the space it sees as free or occupied. Everything else is unknown, including the obstacles drawn faintly here that the drone has not seen yet.",
+        },
+        {
+          d: 9000,
+          node: "Global path",
+          t: "A path that is allowed to cross unknown space",
+          hud: "GLOBAL SEARCH · unknown counts as free",
+          text: "At every replan, the planner searches a path from the drone to the goal on this map. Known obstacles are inflated by the drone's radius, and unknown cells count as free. That optimism keeps the drone fast: it does not have to stop at the edge of what it has seen.",
+        },
+        {
+          d: 9000,
+          node: "Safe backup",
+          t: "A fast plan with a safe way out",
+          hud: "TWO PLANS · whole and safe",
+          text: "FASTER then optimizes two trajectories inside corridors of free space. The whole trajectory may cross unknown space. The safe trajectory branches off it, stays inside space the camera has already seen and ends at a stop. If the next replan fails, the drone follows the safe one, so it never has to fly blind.",
+        },
+        {
+          d: 0,
+          node: "Cubic Drone",
+          t: "Could it fly the Cubic Drone?",
+          hud: "FLIGHT · 0.7 m slot in the wall",
+          text: "Yes, in principle. With its arms held at one angle, the Cubic Drone is a quadcopter, which is what FASTER was built for. Folding changes two of its inputs: the drone gets narrower, but it accelerates less because part of the thrust points sideways. With flat arms it does not fit through the 0.7 m slot and has to find a way around the wall; with its arms at 50° it fits through.",
+        },
+      ];
+      const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+      // ---------- theme: follow the embedding page (al-folio sets data-theme on <html>), else the OS
+      function applyTheme() {
+        let t = null;
+        try {
+          t = parent !== window && parent.document.documentElement.getAttribute("data-theme");
+        } catch (e) {}
+        if (!t) t = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+        document.documentElement.setAttribute("data-theme", t);
+      }
+      applyTheme();
+      try {
+        if (parent !== window)
+          new MutationObserver(applyTheme).observe(parent.document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+      } catch (e) {}
+      matchMedia("(prefers-color-scheme: dark)").addEventListener("change", applyTheme);
+
+      function postHeight() {
+        if (parent !== window)
+          parent.postMessage({ thesisFrame: FRAME, h: Math.ceil(document.querySelector(".wrap").getBoundingClientRect().height) + 4 }, "*");
+      }
+      new ResizeObserver(postHeight).observe(document.querySelector(".wrap"));
+
+      // ---------- state, rail and info panel
+      let step = 0,
+        t0 = performance.now(),
+        playing = !reduce,
+        pausedAt = 0,
+        live = Sim(CONF.flat),
+        liveKey = "flat",
+        doneAt = null,
+        autoSwitch = true; // step 4 plays flat arms, then folded arms, unless the reader picks one
+      const rail = document.getElementById("rail");
+      FLOW.forEach((f, i) => {
+        const b = document.createElement("button");
+        b.className = "node";
+        b.innerHTML = `<span class="dot"></span><small>${f.node}</small><span class="bar"></span>`;
+        b.addEventListener("click", () => go(i));
+        rail.appendChild(b);
+      });
+      const nodes = [...rail.querySelectorAll(".node")];
+      const cases = [...document.querySelectorAll(".case")];
+      const caseText = (k) => `${(2 * CONF[k].r).toFixed(2)} m wide · ${CONF[k].a.toFixed(1)} m/s²`;
+      document.getElementById("caseFlat").textContent = caseText("flat");
+      document.getElementById("caseFold").textContent = caseText("fold");
+      cases.forEach((b) =>
+        b.addEventListener("click", () => {
+          autoSwitch = false;
+          startLive(b.dataset.k);
+        })
+      );
+      function startLive(k) {
+        liveKey = k;
+        live = Sim(CONF[k]);
+        doneAt = null;
+        cases.forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.k === k)));
+        renderPanel();
+      }
+
+      const row = (a, b) => `<div><dt>${a}</dt><dd>${b}</dd></div>`;
+      const cfgRows = (k) => [
+        ["Width (corner to corner)", `${(2 * CONF[k].r).toFixed(2)} m`],
+        ["Max acceleration", `${CONF[k].a.toFixed(1)} m/s²`],
+        ["Route", RESULT[k].route],
+        ["Time to goal", `${RESULT[k].t.toFixed(1)} s`],
+      ];
+      const PANELS = [
+        [
+          "Sensor",
+          [
+            ["Camera", "depth camera"],
+            ["Field of view", "87°"],
+            ["Range used", `${RA} m`],
+            ["Update", `every ${SENSE} s`],
+          ],
+          "Map",
+          [
+            ["World", `${WW} × ${WH} m`],
+            ["Cell size", `${RES} m`],
+            ["Cell states", "unknown, free, occupied"],
+            ["Goal", `${(GOAL[0] - START[0]).toFixed(0)} m ahead`],
+          ],
+          "A concept simulation: FASTER has not been run on the Cubic Drone. The world is generated, and the drone's size and thrust come from the thesis.",
+        ],
+        [
+          "Global search",
+          [
+            ["FASTER uses", "Jump Point Search"],
+            ["Shown here", "A* (same path)"],
+            ["Unknown cells", "treated as free"],
+            ["Replanning", `every ${REPLAN} s`],
+          ],
+          "Inflation",
+          [
+            ["Drone radius, flat arms", `${CONF.flat.r.toFixed(2)} m`],
+            ["Safety margin", `${MARGIN.toFixed(2)} m`],
+            ["Blocked if closer than", `${(CONF.flat.r + MARGIN).toFixed(2)} m`],
+            ["Path", "corners only"],
+          ],
+          "Jump Point Search finds the same shortest paths as A* on a grid, only faster, so A* stands in for it here.",
+        ],
+        [
+          "Two plans",
+          [
+            ["Whole", "free + unknown space"],
+            ["Safe", "known free space only"],
+            ["Safe plan ends", "at rest"],
+            ["Committed", "up to the branch point"],
+          ],
+          "In FASTER",
+          [
+            ["Corridors", "convex polyhedra"],
+            ["Shown here", "boxes"],
+            ["Trajectories", "optimized (MIQP)"],
+            ["Limits", "v, a and jerk"],
+          ],
+          "The corridors are simplified to boxes and the safe plan to a braking distance along the path; FASTER optimizes both trajectories with a mixed-integer solver.",
+        ],
+        [
+          "Arms flat",
+          cfgRows("flat"),
+          "Arms at 50°",
+          cfgRows("fold"),
+          `Max acceleration is FASTER's default ${A_FASTER} m/s², or less when tilted arms leave little spare thrust (1 kg drone, 4 × 4.0 N). Speed capped at ${V_MAX} m/s; shown at ${PLAY}× speed. A real flight would also need the depth camera and an onboard computer, which cut into the thrust margin.`,
+        ],
+      ];
+      function renderPanel() {
+        const f = FLOW[step],
+          p = PANELS[step];
+        document.getElementById("snum").textContent = `Step ${step + 1} / ${FLOW.length} · ${f.node}`;
+        document.getElementById("stitle").textContent = f.t;
+        document.getElementById("stext").textContent = f.text;
+        document.getElementById("hudL").textContent = f.hud;
+        document.getElementById("hudR").textContent = step === 3 ? `${PLAY}× speed` : "concept · FASTER on the Cubic Drone";
+        document.getElementById("h1").textContent = p[0];
+        document.getElementById("f1").innerHTML = p[1].map((r) => row(...r)).join("");
+        document.getElementById("h2").textContent = p[2];
+        document.getElementById("f2").innerHTML = p[3].map((r) => row(...r)).join("");
+        document.getElementById("snote").textContent = p[4];
+        document.getElementById("cases").hidden = step !== 3;
+        const chip = (n, c) => `<span class="chip static"><i style="background:${c}"></i>${n}</span>`;
+        const rgb = (a) => `rgb(${a})`;
+        const CH = [
+          [
+            ["Unknown", rgb(COL.unknown)],
+            ["Seen free", rgb(COL.free)],
+            ["Seen obstacle", rgb(COL.occ)],
+            ["Not seen yet", rgb(COL.unseen)],
+          ],
+          [
+            ["Global path", C.path],
+            ["Inflated obstacles", rgb(COL.infl)],
+            ["Goal", C.goal],
+          ],
+          [
+            ["Whole corridor", C.whole],
+            ["Safe corridor", C.safe],
+            ["Safe stop", C.stop],
+          ],
+          [
+            ["Committed (known free)", C.safe],
+            ["Rest of the plan", C.path],
+            ["Braking point", C.stop],
+          ],
+        ];
+        document.getElementById("chips").innerHTML = CH[step].map((c) => chip(...c)).join("");
+        nodes.forEach((nd, i) => {
+          nd.classList.toggle("on", i === step);
+          nd.classList.toggle("done", i < step);
+          nd.setAttribute("aria-current", i === step ? "step" : "false");
+        });
+        postHeight();
+      }
+      function go(i) {
+        step = (i + FLOW.length) % FLOW.length;
+        t0 = performance.now();
+        pausedAt = 0;
+        if (step === 0) startLive("flat");
+        if (step === 3) {
+          autoSwitch = true;
+          startLive("flat");
+        }
+        renderPanel();
+      }
+      document.getElementById("prev").onclick = () => go(step - 1);
+      document.getElementById("next").onclick = () => go(step + 1);
+      const playBtn = document.getElementById("play");
+      playBtn.onclick = () => {
+        playing = !playing;
+        playBtn.textContent = playing ? "Pause" : "Play";
+        if (playing) t0 = performance.now() - pausedAt;
+        else pausedAt = performance.now() - t0;
+      };
+      playBtn.textContent = playing ? "Pause" : "Play";
+
+      // ---------- drawing helpers
+      const cv = document.getElementById("cv"),
+        ctx = cv.getContext("2d");
+      function fit() {
+        const r = cv.getBoundingClientRect(),
+          d = devicePixelRatio || 1;
+        if (cv.width !== Math.round(r.width * d) || cv.height !== Math.round(r.height * d)) {
+          cv.width = Math.round(r.width * d);
+          cv.height = Math.round(r.height * d);
+        }
+        ctx.setTransform(d, 0, 0, d, 0, 0);
+        return [r.width, r.height];
+      }
+      const MONO = "ui-monospace, Menlo, Consolas, monospace";
+      function label(txt, x, y, col = "#d3d8de", align = "left", font = `500 11.5px ${MONO}`) {
+        ctx.font = font;
+        ctx.fillStyle = col;
+        ctx.textAlign = align;
+        ctx.fillText(txt, x, y);
+        ctx.textAlign = "left";
+      }
+      // camera: whole world on wide screens, a window that follows the drone on narrow ones
+      let CAM = { s: 1, ox: 0, oy: 0 };
+      function camera(W, H, s) {
+        const top = 36,
+          bot = 26,
+          pad = 10,
+          wide = W / (H - top - bot) > 1.4;
+        const vw = wide ? WW : Math.min(WW, 12),
+          vh = wide ? WH : (vw * (H - top - bot)) / (W - 2 * pad);
+        const sc = Math.min((W - 2 * pad) / vw, (H - top - bot) / vh);
+        let cx = wide ? WW / 2 : Math.max(vw / 2, Math.min(WW - vw / 2, s.x)),
+          cy = wide ? WH / 2 : Math.max(vh / 2, Math.min(WH - vh / 2, s.y));
+        CAM = { s: sc, ox: W / 2 - cx * sc, oy: top + (H - top - bot) / 2 - cy * sc };
+      }
+      const P = ([x, y]) => [CAM.ox + CAM.s * x, CAM.oy + CAM.s * y];
+      const off = document.createElement("canvas");
+      off.width = GW;
+      off.height = GH;
+      const octx = off.getContext("2d"),
+        img = octx.createImageData(GW, GH);
+      function drawMap(s, infl) {
+        const d = img.data;
+        for (let i = 0; i < GW * GH; i++) {
+          const k = s.known[i];
+          let c = k === 2 ? COL.occ : k === 1 ? COL.free : occTrue[i] ? COL.unseen : COL.unknown;
+          if (infl && k !== 2 && blocked(s, i)) c = k === 1 ? COL.infl : [32, 70, 84];
+          d[4 * i] = c[0];
+          d[4 * i + 1] = c[1];
+          d[4 * i + 2] = c[2];
+          d[4 * i + 3] = 255;
+        }
+        octx.putImageData(img, 0, 0);
+        ctx.save();
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(off, CAM.ox, CAM.oy, WW * CAM.s, WH * CAM.s);
+        ctx.restore();
+      }
+      function polyline(pts, col, w, dash) {
+        if (!pts || pts.length < 2) return;
+        ctx.beginPath();
+        pts.forEach((p, i) => {
+          const [x, y] = P(p);
+          i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+        });
+        ctx.strokeStyle = col;
+        ctx.lineWidth = w;
+        ctx.lineJoin = "round";
+        ctx.setLineDash(dash || []);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+      // the part of a path between two distances along it
+      function cut(p, d0, d1) {
+        const out = [along(p, d0)];
+        let acc = 0;
+        for (let k = 1; k < p.length; k++) {
+          acc += Math.hypot(p[k][0] - p[k - 1][0], p[k][1] - p[k - 1][1]);
+          if (acc > d0 && acc < d1) out.push(p[k]);
+        }
+        out.push(along(p, d1));
+        return out;
+      }
+      function fov(s) {
+        const [x, y] = P([s.x, s.y]),
+          R = RA * CAM.s,
+          [wx, wy] = P([0, 0]);
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(wx, wy, WW * CAM.s, WH * CAM.s);
+        ctx.clip();
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.arc(x, y, R, s.yaw - FOV / 2, s.yaw + FOV / 2);
+        ctx.closePath();
+        ctx.fillStyle = C.fov;
+        ctx.fill();
+        ctx.strokeStyle = C.fovLine;
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        ctx.restore();
+      }
+      // top view of the Cubic Drone: the body and four arm frames, foreshortened when tilted
+      function drone(s) {
+        const [x, y] = P([s.x, s.y]),
+          k = CAM.s,
+          reach = s.cfg.reach;
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.rotate(s.yaw);
+        for (let i = 0; i < 4; i++) {
+          ctx.save();
+          ctx.rotate((i * Math.PI) / 2);
+          ctx.fillStyle = "rgba(224,90,79,.35)";
+          ctx.strokeStyle = C.arm;
+          ctx.lineWidth = 1.2;
+          ctx.beginPath();
+          ctx.rect(0.1 * k, -0.1 * k, (reach - 0.1) * k, 0.2 * k);
+          ctx.fill();
+          ctx.stroke();
+          ctx.restore();
+        }
+        ctx.fillStyle = "rgba(232,197,71,.6)";
+        ctx.strokeStyle = C.body;
+        ctx.beginPath();
+        ctx.rect(-0.1 * k, -0.1 * k, 0.2 * k, 0.2 * k);
+        ctx.fill();
+        ctx.stroke();
+        ctx.restore();
+        // keep a small drone visible on wide screens
+        if (k * reach < 7) {
+          ctx.beginPath();
+          ctx.arc(x, y, 9, 0, 2 * Math.PI);
+          ctx.strokeStyle = "rgba(255,255,255,.5)";
+          ctx.lineWidth = 1;
+          ctx.stroke();
+        }
+      }
+      function goal() {
+        const [x, y] = P(GOAL);
+        ctx.beginPath();
+        ctx.arc(x, y, 7, 0, 2 * Math.PI);
+        ctx.strokeStyle = C.goal;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        label("goal", x - 10, y - 12, C.goal, "right");
+      }
+      function mark(p, col) {
+        const [x, y] = P(p);
+        ctx.beginPath();
+        ctx.arc(x, y, 4.5, 0, 2 * Math.PI);
+        ctx.fillStyle = col;
+        ctx.fill();
+        ctx.strokeStyle = "#0b0d10";
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      }
+      // corridors: boxes grown from points along the path until they touch a blocked cell
+      function corridors(s, safe) {
+        const out = [],
+          p = s.path,
+          ok = (c, r) => inside(c, r) && !blocked(s, r * GW + c) && (safe ? s.known[r * GW + c] === 1 : s.known[r * GW + c] !== 2);
+        if (!p) return out;
+        const L = Math.min(pathLen(p), safe ? s.safeLen : RA);
+        for (let d = 0.4; d < L; d += 1.2) {
+          const [c, r] = cellOf(...along(p, d));
+          if (!ok(c, r)) continue;
+          const b = [c, r, c, r];
+          const grow = [
+            () => b[0] - 1 >= 0 && [...Array(b[3] - b[1] + 1)].every((_, k) => ok(b[0] - 1, b[1] + k)) && b[0]--,
+            () => [...Array(b[3] - b[1] + 1)].every((_, k) => ok(b[2] + 1, b[1] + k)) && b[2]++,
+            () => [...Array(b[2] - b[0] + 1)].every((_, k) => ok(b[0] + k, b[1] - 1)) && b[1]--,
+            () => [...Array(b[2] - b[0] + 1)].every((_, k) => ok(b[0] + k, b[3] + 1)) && b[3]++,
+          ];
+          for (let it = 0; it < 15; it++) grow.forEach((g) => g());
+          out.push([b[0] * RES, b[1] * RES, (b[2] + 1) * RES, (b[3] + 1) * RES]);
+        }
+        return out;
+      }
+      function boxes(list, col, fill) {
+        for (const [x0, y0, x1, y1] of list) {
+          const [a, b] = P([x0, y0]),
+            [c, d] = P([x1, y1]);
+          ctx.fillStyle = fill;
+          ctx.fillRect(a, b, c - a, d - b);
+          ctx.strokeStyle = col;
+          ctx.lineWidth = 1.2;
+          ctx.strokeRect(a, b, c - a, d - b);
+        }
+      }
+      // committed part in green, the rest dashed, and the point where a full stop would end
+      function plans(s) {
+        if (!s.path) return;
+        const L = pathLen(s.path),
+          safe = Math.min(L, s.safeLen);
+        polyline(cut(s.path, safe, L), C.path, 1.6, [6, 5]);
+        polyline(cut(s.path, 0, safe), C.safe, 3);
+        const sp = Math.hypot(s.vx, s.vy),
+          brake = Math.min(safe, (sp * sp) / (2 * s.cfg.a));
+        if (sp > 0.2) mark(along(s.path, brake), C.stop);
+      }
+
+      // ---------- steps
+      function drawSense(W, H, dt) {
+        for (let k = 0; k < Math.round(dt / DT); k++) stepSim(live);
+        camera(W, H, live);
+        drawMap(live, false);
+        polyline(live.trail, "rgba(255,255,255,.35)", 1.2);
+        fov(live);
+        goal();
+        drone(live);
+        let seen = 0;
+        for (let i = 0; i < GW * GH; i++) if (live.known[i]) seen++;
+        label(`seen ${Math.round((seen / (GW * GH)) * 100)} % of the area · ${Math.hypot(live.vx, live.vy).toFixed(1)} m/s`, 16, H - 10);
+      }
+      function drawGlobal(W, H, u) {
+        const s = SNAP;
+        camera(W, H, s);
+        drawMap(s, true);
+        polyline(s.trail, "rgba(255,255,255,.3)", 1.2);
+        goal();
+        if (s.path) {
+          polyline(cut(s.path, 0, pathLen(s.path) * Math.min(1, u * 1.6)), C.path, 2.4);
+          s.path.slice(1, -1).forEach((p) => u > 0.65 && mark(p, C.path));
+        }
+        drone(s);
+        label("the path crosses unknown space", 16, H - 10);
+      }
+      function drawSafe(W, H, u) {
+        const s = SNAP;
+        camera(W, H, s);
+        drawMap(s, true);
+        goal();
+        if (u > 0.15) boxes(corridors(s, false), C.whole, "rgba(64,200,230,.10)");
+        if (u > 0.45) boxes(corridors(s, true), C.safe, "rgba(105,196,138,.16)");
+        if (s.path) {
+          const safe = Math.min(pathLen(s.path), s.safeLen);
+          polyline(cut(s.path, safe, pathLen(s.path)), C.path, 1.6, [6, 5]);
+          if (u > 0.45) {
+            polyline(cut(s.path, 0, safe), C.safe, 3);
+            mark(along(s.path, safe), C.stop);
+          }
+          label(`safe part: ${safe.toFixed(1)} m inside known free space`, 16, H - 10);
+        }
+        fov(s);
+        drone(s);
+      }
+      function drawFly(W, H, dt, now) {
+        if (!live.done) for (let k = 0; k < Math.round((dt * PLAY) / DT); k++) stepSim(live);
+        else if (doneAt === null) doneAt = now;
+        camera(W, H, live);
+        drawMap(live, true);
+        polyline(live.trail, "rgba(255,255,255,.4)", 1.4);
+        fov(live);
+        goal();
+        plans(live);
+        drone(live);
+        label(
+          live.done
+            ? `${liveKey === "flat" ? "flat arms" : "arms at 50°"}: goal reached in ${live.t.toFixed(1)} s`
+            : `t = ${live.t.toFixed(1)} s · ${Math.hypot(live.vx, live.vy).toFixed(1)} m/s`,
+          16,
+          H - 10,
+          live.done ? C.safe : "#d3d8de"
+        );
+        if (doneAt !== null && now - doneAt > 2500 && playing) {
+          if (autoSwitch && liveKey === "flat") startLive("fold");
+          else go(step + 1);
+        }
+      }
+
+      let lastNow = performance.now();
+      function tick(now) {
+        const [W, H] = fit(),
+          f = FLOW[step],
+          dt = playing ? Math.min(0.05, (now - lastNow) / 1000) : 0;
+        lastNow = now;
+        let el = playing ? now - t0 : pausedAt;
+        if (playing && f.d && el > f.d) {
+          go(step + 1);
+          el = 0;
+        }
+        const u = reduce ? 1 : f.d ? Math.min(el / f.d, 1) : ((liveKey === "fold" ? 1 : 0) + Math.min(1, live.t / RESULT[liveKey].t)) / 2;
+        nodes.forEach((nd, i) => nd.querySelector(".bar").style.setProperty("--p", i < step ? "100%" : i === step ? `${u * 100}%` : "0%"));
+        ctx.fillStyle = "#0b0d10";
+        ctx.fillRect(0, 0, W, H);
+        if (step === 0) drawSense(W, H, reduce ? 0 : dt);
+        else if (step === 1) drawGlobal(W, H, u);
+        else if (step === 2) drawSafe(W, H, u);
+        else drawFly(W, H, reduce ? 0 : dt, now);
+        requestAnimationFrame(tick);
+      }
+      renderPanel();
+      requestAnimationFrame(tick);
+    </script>
+  </body>
+</html>
