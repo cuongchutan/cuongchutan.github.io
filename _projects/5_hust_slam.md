@@ -7,7 +7,7 @@ importance: 5
 category: Work
 ---
 
-**Where:** Department of Mechatronics, Hanoi University of Science and Technology (HUST) — supervised by Assoc. Prof. Nguyen Xuan Ha
+**Where:** Department of Mechatronics, Hanoi University of Science and Technology (HUST)
 
 **Goal.** An autonomous service robot that maps a room with its LiDAR, drives itself to a destination on that map and can be controlled by voice.
 
@@ -22,7 +22,7 @@ category: Work
 
 Follow the robot from its sensors to a safe drive: why one LiDAR is not enough, how it maps a room, how it plans paths on that map, and what happens when an obstacle is invisible to the LiDAR.
 
-<iframe class="hust-frame" src="{{ '/assets/hust/navigation.html' | relative_url }}" title="Animation of the robot's sensor layers, mapping, navigation and safety layer" loading="lazy"></iframe>
+<iframe scrolling="no" class="hust-frame" src="{{ '/assets/hust/navigation.html' | relative_url }}" title="Animation of the robot's sensor layers, mapping, navigation and safety layer" loading="lazy"></iframe>
 
 <p class="small text-muted">The map is the real one the robot recorded in the AIR lab; the drives are re-simulated in the browser using the parameters from our ROS configuration.</p>
 

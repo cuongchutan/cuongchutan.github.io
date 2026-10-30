@@ -9,20 +9,19 @@
   title: IEEE RAS Summer School on Multi-Robot Systems
   issuer: Czech Technical University in Prague
   note: Prague, Czech Republic. Ranked 4th of 42 teams in the Real World challenge.
-  file: assets/certificates/2025-multi-rob.jpg
+  file: assets/certificates/2025-multi-rob.png
 
 - date: 2025-07-01
   title: IEEE RAS Summer School on Optimization for Robotics
   issuer: University of Patras
   note: Patras, Greece.
-  file: assets/certificates/2025-opt-rob.jpg
+  file: assets/certificates/2025-opt-rob.png
 
 - date: 2025-06-01
   title: CINI Summer School on HPC for Science, Industry, and Society
   issuer: Consorzio Interuniversitario Nazionale per l'Informatica (CINI)
   note: Naples, Italy. 33.5 hours of lectures and hands-on sessions; passed the final exam.
-  file: assets/certificates/2025-cini-hpc.pdf
-  preview: assets/certificates/2025-cini-hpc-preview.jpg
+  file: assets/certificates/2025-cini-hpc.png
 
 - date: 2022-07-01
   title: Certificate of Completion — BGSV Embedded Academy

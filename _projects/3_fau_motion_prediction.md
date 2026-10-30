@@ -7,7 +7,7 @@ importance: 3
 category: Work
 ---
 
-**Where:** Chair of Automatic Control (Lehrstuhl für Regelungstechnik), FAU Erlangen-Nürnberg — supervised by M.Sc. Philipp Santer
+**Where:** Chair of Automatic Control (Lehrstuhl für Regelungstechnik), FAU Erlangen-Nürnberg
 
 **Goal.** Predict long-term human motion trajectories so robots can move safely around people.
 
@@ -23,7 +23,7 @@ category: Work
 
 Pick one of the example scenes from my report and follow it step by step: what the model observes, how it infers each person's goal and plans towards it, how its 4.8-second prediction compares with other models and with where people actually walked, and how the models do across the whole dataset.
 
-<iframe class="mdp-frame" src="{{ '/assets/mdp/prediction.html' | relative_url }}" title="Animation of human motion prediction on the THÖR dataset" loading="lazy"></iframe>
+<iframe scrolling="no" class="mdp-frame" src="{{ '/assets/mdp/prediction.html' | relative_url }}" title="Animation of human motion prediction on the THÖR dataset" loading="lazy"></iframe>
 
 <p class="small text-muted">The example scenes were re-run with my final code; the benchmark numbers are from the final report. Trajectory data: <a href="http://thor.oru.se/" target="_blank" rel="noopener">THÖR dataset</a>, Örebro University.</p>
 

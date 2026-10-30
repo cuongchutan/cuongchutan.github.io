@@ -7,7 +7,7 @@ importance: 4
 category: Work
 ---
 
-**Where:** Department of Applied Mechanics, Hanoi University of Science and Technology (HUST) — supervised by Dr. Thai Phuong Thao
+**Where:** Department of Applied Mechanics, Hanoi University of Science and Technology (HUST)
 
 **Goal.** A quadcopter whose four arms fold down into a cube when it rests and open flat to fly. The arm angles can also change during flight, so the drone can adapt its shape to its surroundings, for example to fly through a narrow gap.
 
@@ -32,7 +32,7 @@ category: Work
 
 Follow the drone from its folding mechanism to a controlled climb: how one servo per arm folds it into a cube, why tilted arms cost thrust, and how it holds its height with its arms folded.
 
-<iframe class="cubic-frame" src="{{ '/assets/hust/cubic-drone.html' | relative_url }}" title="Animation of the Cubic Drone folding, its four-bar linkage, thrust and height control" loading="lazy"></iframe>
+<iframe scrolling="no" class="cubic-frame" src="{{ '/assets/hust/cubic-drone.html' | relative_url }}" title="Animation of the Cubic Drone folding, its four-bar linkage, thrust and height control" loading="lazy"></iframe>
 
 <p class="small text-muted">The geometry, mass and motor limits come from the thesis. The drone itself was not built, so all motion here is simulated.</p>
 
@@ -46,13 +46,13 @@ Follow the drone from its folding mechanism to a controlled climb: how one servo
   <figcaption>The MATLAB simulation from the thesis: with its arms at 45°, 30°, 45° and 30°, the drone climbs from 10 m to 16 m and holds its attitude. The z axis points down, so heights read as negative numbers.</figcaption>
 </figure>
 
-## Further experiment: fast planning in unknown environments
+## Experiments: How the drone plans in unknown environments
 
-After the thesis simulations, I tested FASTER, a planner from MIT for fast and safe flight through unknown environments, with the Cubic Drone. FASTER builds a map from a depth camera, searches a global path that may cross unknown space, and optimizes a fast trajectory together with a safe backup that stays inside space the camera has already seen. Follow one flight through a wall with a 0.7 m slot: what the drone senses, how it plans, how it decides when to fold its arms to fit through the slot, and how much time folding saves.
+After the thesis simulations, I tested FASTER, a planner from MIT for fast and safe flight through unknown environments, with the Cubic Drone. FASTER builds a map from a depth camera, searches a global path that may cross unknown space, and optimizes a fast trajectory together with a safe backup that stays inside space the camera has already seen. Follow one flight through a wall with a 0.7 m slot, once with the arms flat and once folding them when needed: what the drone senses, how it plans, how it decides when to fold its arms, and how long each flight takes.
 
-<iframe class="faster-frame" src="{{ '/assets/hust/faster.html' | relative_url }}" title="Animation of the FASTER planner flying the Cubic Drone through an unknown environment and folding its arms for a narrow slot" loading="lazy"></iframe>
+<iframe scrolling="no" class="faster-frame" src="{{ '/assets/hust/faster.html' | relative_url }}" title="Animation of the FASTER planner flying the Cubic Drone through an unknown environment and folding its arms for a narrow slot" loading="lazy"></iframe>
 
-<p class="small text-muted">The world is generated; the flights are re-simulated in the browser with the drone's size, mass and motor thrust from the thesis.</p>
+<p class="small text-muted">The world is generated, and the flights are re-simulated in the browser with a simplified version of FASTER and the drone's size, mass and motor thrust from the thesis. The flight times compare the two arm shapes in this world; they are not measurements.</p>
 
 <style>
   .post article p, .post article li { text-align: justify; hyphens: auto; }
