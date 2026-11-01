@@ -412,6 +412,45 @@
         touch-action: pan-y;
         cursor: grab;
       }
+      .mcard {
+        margin: 0 0 10px;
+        padding: 8px 12px;
+        border-left: 3px solid var(--accent);
+        background: var(--panel);
+        border-radius: 0 8px 8px 0;
+        font-size: 13.5px;
+        line-height: 1.5;
+        color: var(--muted);
+        text-align: justify;
+        hyphens: auto;
+      }
+      .mcard b {
+        color: var(--fg);
+      }
+      .zoom {
+        position: absolute;
+        right: 10px;
+        bottom: 34px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+      .zoom button {
+        all: unset;
+        cursor: pointer;
+        width: 30px;
+        height: 30px;
+        display: grid;
+        place-items: center;
+        font: 600 16px/1 var(--mono);
+        color: #e8edf2;
+        background: rgba(10, 12, 15, 0.78);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 8px;
+      }
+      .zoom button:focus-visible {
+        outline: 2px solid var(--accent);
+      }
       .tip {
         position: absolute;
         pointer-events: none;
@@ -432,11 +471,17 @@
       <div>
         <div class="pickers">
           <div class="seg" id="probs" role="group" aria-label="Challenge"><span>Map</span></div>
-          <div class="seg" id="plans" role="group" aria-label="Path planner"><span>Planner</span></div>
+          <div class="seg" id="plans" role="group" aria-label="Method"><span>Method</span></div>
         </div>
+        <p class="mcard" id="mcard" hidden></p>
         <div class="view" id="view">
           <canvas id="cv" aria-label="Animation of the current step"></canvas>
           <div class="hud"><span id="hudL"></span><span id="hudR"></span></div>
+          <div class="zoom" id="zoomBtns">
+            <button id="zin" aria-label="Zoom in">+</button>
+            <button id="zout" aria-label="Zoom out">−</button>
+            <button id="zreset" aria-label="Reset the view">⟲</button>
+          </div>
           <div class="tip" id="tip" hidden></div>
         </div>
         <div class="chips" id="chips"></div>
@@ -507,9 +552,9 @@
         {
           d: 9000,
           node: "Plan paths",
-          t: "Replace each straight leg with a safe path",
-          hud: () => (plan === "faster" ? "FASTER · MAP UNKNOWN AT TAKEOFF" : `PATH PLANNER · ${PNAME[plan]} · MAP KNOWN`),
-          text: null, // per planner, below
+          t: "Where the four methods' paths differ",
+          hud: () => `ALL METHODS · ${PNAME[plan]} HIGHLIGHTED`,
+          text: "Each method replaces the straight legs with paths that keep clear of the terrain. All four are drawn for both drones: the selected method in bold, the others bright only where they leave it by more than 1 m, so the differences stand out. Click a method below the view to hide or show it. FASTER's line is the path it actually flew, since it planned without the map.",
         },
         {
           d: 0,
@@ -521,9 +566,9 @@
         {
           d: 14000,
           node: "Compare",
-          t: "Which planner flies the mission fastest?",
-          hud: () => "ALL CHALLENGES · ALL PLANNERS",
-          text: "A*, Theta* and RRT* plan on the known map before takeoff; FASTER knows only the viewpoints and maps the mine during the flight. All four used the same assignment, tour order and collision avoidance, on all three maps. RRT* is random, so it ran five times per map, and the whiskers show its fastest and slowest runs. Every method kept 1.5 m from the terrain and 2.5 m between the drones.",
+          t: "Which method flies the mission fastest?",
+          hud: () => "ALL MAPS · ALL METHODS",
+          text: "All four methods used the same assignment, tour order and collision avoidance on all three maps. The left chart shows how much slower each method was than the fastest run on that map; RRT* is random, so it ran five times, and the whiskers show its fastest and slowest runs. Every method kept 1.5 m from the terrain and 2.5 m between the drones.",
         },
       ];
       const PLAN_TEXT = {
@@ -540,7 +585,7 @@
         known:
           "The paths are smoothed and time-parametrized with TOPPRA, so the drones never stop at a viewpoint and stay within the speed and acceleration limits. The heading is interpolated between viewpoints so the camera already faces the next point when the drone arrives. If the two trajectories come closer than 2.5 m, one drone waits at the start until they no longer collide.",
         faster:
-          "FASTER builds the trajectory while flying: the drone follows the newest path within the speed and acceleration limits, slows to pass each viewpoint, and turns the camera at no more than 1 rad/s. The terrain lights up where the LiDAR has seen it. The same collision avoidance as for the other planners delays one drone at the start if the two would come closer than 2.5 m.",
+          "FASTER builds the trajectory while flying: the drone follows the newest path within the speed and acceleration limits, slows to pass each viewpoint, and turns the camera at no more than 1 rad/s. Green is the part of the current plan inside space the LiDAR has already seen; the dashed rest crosses unknown space. Terrain stays dark until it is seen.",
       };
       const S_SPLIT = 1,
         S_PLAN = 2,
@@ -619,7 +664,14 @@
         el = 0.68,
         CX = 0,
         CY = 0,
-        SC = 1;
+        SC = 1,
+        ZOOM = 1, // user zoom and pan (pixels)
+        PANX = 0,
+        PANY = 0,
+        BX = 0, // view centre without pan: x, and y = BY0 + BYZ * ZOOM
+        BY0 = 0,
+        BYZ = 0,
+        userCam = false; // the reader moved the view: stop turning it automatically
       function camera(W, H) {
         const top = 34,
           bot = 26,
@@ -627,9 +679,13 @@
           sa = Math.abs(Math.sin(az));
         const ex = ca * 75 + sa * 50,
           ey = (sa * 75 + ca * 50) * Math.sin(el) + 20 * Math.cos(el);
-        SC = Math.min((W - 16) / ex, (H - top - bot) / ey);
-        CX = W / 2;
-        CY = top + (H - top - bot) / 2 + 4 * Math.cos(el) * SC;
+        const s0 = Math.min((W - 16) / ex, (H - top - bot) / ey);
+        SC = s0 * ZOOM;
+        BX = W / 2;
+        BY0 = top + (H - top - bot) / 2;
+        BYZ = 4 * Math.cos(el) * s0;
+        CX = BX + PANX;
+        CY = BY0 + BYZ * ZOOM + PANY;
       }
       function proj(x, y, z) {
         const ca = Math.cos(az),
@@ -806,7 +862,8 @@
         pausedAt = 0,
         flyT = 0,
         doneAt = null,
-        dragging = false;
+        dragging = false,
+        hidden = new Set(); // methods hidden on the Plan step
       const rail = document.getElementById("rail");
       FLOW.forEach((f, i) => {
         const b = document.createElement("button");
@@ -825,7 +882,7 @@
           b.addEventListener("click", () => {
             set(k);
             g.querySelectorAll("button").forEach((x) => x.setAttribute("aria-pressed", String(x.dataset.k === get())));
-            go(step);
+            go(id === "plans" && step < S_PLAN ? S_PLAN : step);
           });
           b.setAttribute("aria-pressed", String(k === get()));
           g.appendChild(b);
@@ -875,7 +932,7 @@
               ["Distance to terrain", "≥ 1.5 m"],
               ["Distance between drones", "≥ 2.5 m"],
             ],
-            "Drag the view to turn the mine. The terrain is the competition's mesh, sampled every metre.",
+            "Drag to turn the mine, scroll or pinch to zoom, right-drag or drag with two fingers to pan. The terrain is the competition's mesh, sampled every metre.",
           ],
           [
             "Assignment",
@@ -895,15 +952,14 @@
               : "On this map no straight leg comes closer than 1.5 m to the mine; try the large map.",
           ],
           [
-            `${PNAME[plan]} on this map`,
-            [
-              plan === "faster"
-                ? ["Flown distance, both drones", `${r.uav.reduce((a, u) => a + u.length, 0).toFixed(0)} m`]
-                : ["Path length, both drones", `${tourLen(plan).toFixed(0)} m`],
-              ["Closest to terrain", `${Math.min(...r.uav.map((u) => u.min_obs)).toFixed(2)} m`],
-              [plan === "faster" ? "Replanning time, in total" : "Computation time", `${s1(r.planning_time)} s`],
-            ],
-            "Settings",
+            "Flown distance, both drones",
+            PL.map((m) => [
+              m === plan ? `<b>${PNAME[m]}</b>` : PNAME[m],
+              `${run(m)
+                .uav.reduce((a, u) => a + u.length, 0)
+                .toFixed(0)} m`,
+            ]),
+            `${PNAME[plan]} settings`,
             plan === "faster"
               ? [
                   ["Map at takeoff", "unknown"],
@@ -926,7 +982,7 @@
               ? `With the whole map known from the start, the same planner flew this map in ${P().faster_known_map.toFixed(1)} s instead of ${s1(r.mission_time)} s: the LiDAR sees 10 m, much farther than the drone needs to brake from 5 m/s, so not knowing the map costs little here. Simplified: FASTER optimizes its trajectories with a mixed-integer solver; here the drone follows the planned path under the same limits.`
               : plan === "rrtstar6"
                 ? "Our team's config set the RRT* rewiring radius to 1 m, shorter than the 3 m branches, so it never rewired and gave exactly the same paths as RRT in all runs. These results use 6 m."
-                : "Computation time covers the whole pipeline: assignment, ordering, path planning and trajectory generation.",
+                : `Closest to the terrain: ${Math.min(...r.uav.map((u) => u.min_obs)).toFixed(2)} m. Computation time for the whole pipeline: ${s1(r.planning_time)} s.`,
           ],
           [
             "Flight",
@@ -944,7 +1000,7 @@
       }
       function table() {
         const p = P(),
-          head = "<thead><tr><th>Planner</th><th>Mission</th><th>Points</th><th>Compute</th></tr></thead>";
+          head = "<thead><tr><th>Method</th><th>Mission</th><th>Points</th><th>Compute</th></tr></thead>";
         const rows = PL.map((m) => {
           const s = stat(m),
             sp = (k, d = 1) => (s.n > 1 ? `${s[k][1].toFixed(d)} <small>(${s[k][0].toFixed(d)}–${s[k][2].toFixed(d)})</small>` : s[k][1].toFixed(d));
@@ -956,8 +1012,7 @@
         const f = FLOW[step];
         document.getElementById("snum").textContent = `Step ${step + 1} / ${FLOW.length} · ${f.node}`;
         document.getElementById("stitle").textContent = f.t;
-        document.getElementById("stext").textContent =
-          f.text || (step === S_FLY ? FLY_TEXT[plan === "faster" ? "faster" : "known"] : PLAN_TEXT[plan]);
+        document.getElementById("stext").textContent = f.text || FLY_TEXT[plan === "faster" ? "faster" : "known"];
         document.getElementById("hudL").textContent = f.hud();
         document.getElementById("hudR").textContent = step === S_FLY ? `${SPEED}× speed` : step === S_CMP ? "" : `${PROBNAME[prob]} map`;
         const pn = panel()[step];
@@ -965,7 +1020,7 @@
         document.getElementById("tableWrap").hidden = !!pn;
         if (pn) {
           document.getElementById("h1").textContent = pn[0];
-          document.getElementById("f1").innerHTML = pn[1].map((r) => row(...r)).join("");
+          document.getElementById("f1").innerHTML = pn[1].map((r) => row(...r)).join(""); // labels may hold <b> for the selected method
           document.getElementById("h2").textContent = pn[2];
           document.getElementById("f2").innerHTML = pn[3].map((r) => row(...r)).join("");
           document.getElementById("snote").textContent = pn[4];
@@ -976,7 +1031,13 @@
             "Mission: time until both drones are back at their starts (RRT*: mean and range of five runs). Compute: time to produce both trajectories on a laptop before takeoff; for FASTER, the replanning time spent during the flight.";
         }
         planG.classList.toggle("off", step < S_PLAN);
+        document.getElementById("zoomBtns").hidden = step === S_CMP;
+        const mc = document.getElementById("mcard");
+        mc.hidden = step < S_PLAN;
+        mc.innerHTML = `<b>${PNAME[plan]}</b> · ${plan === "faster" ? "map unknown at takeoff" : "map known before takeoff"}. ${PLAN_TEXT[plan]}`;
         const chip = (n, c) => `<span class="chip static"><i style="background:${c}"></i>${n}</span>`;
+        const toggle = (m) =>
+          `<button class="chip" data-m="${m}" aria-pressed="${!hidden.has(m)}"><i style="background:${PCOL[m]}"></i>${PNAME[m]}</button>`;
         const CH = [
           [
             ["Red drone only", IPC[1]],
@@ -989,26 +1050,29 @@
             ["Blue tour", UAVC[1]],
             ["Too close to terrain", C.warn],
           ],
-          plan === "faster"
-            ? [
-                ["Committed (seen)", C.safe],
-                ["Rest of the plan", C.path],
-                ["Red / blue flown", UAVC[0]],
-                ["Not seen yet", "#2b2f36"],
-              ]
-            : [
-                ["Red path", UAVC[0]],
-                ["Blue path", UAVC[1]],
-                ["Straight tour", "rgba(232,237,242,.5)"],
-              ],
+          null,
           [
             ["Red drone", UAVC[0]],
             ["Blue drone", UAVC[1]],
             ["Inspected", C.lit],
+            ...(plan === "faster"
+              ? [
+                  ["Committed (seen)", C.safe],
+                  ["Not seen yet", "#2b2f36"],
+                ]
+              : []),
           ],
           PL.map((m) => [PNAME[m], PCOL[m]]),
         ];
-        document.getElementById("chips").innerHTML = CH[step].map((c) => chip(...c)).join("");
+        const chips = document.getElementById("chips");
+        chips.innerHTML = step === S_PLAN ? PL.map(toggle).join("") : CH[step].map((c) => chip(...c)).join("");
+        chips.querySelectorAll("button[data-m]").forEach((b) =>
+          b.addEventListener("click", () => {
+            const m = b.dataset.m;
+            hidden.has(m) ? hidden.delete(m) : hidden.add(m);
+            b.setAttribute("aria-pressed", String(!hidden.has(m)));
+          })
+        );
         nodes.forEach((nd, i) => {
           nd.classList.toggle("on", i === step);
           nd.classList.toggle("done", i < step);
@@ -1036,30 +1100,87 @@
       };
       playBtn.textContent = playing ? "Pause" : "Play";
 
-      // drag to turn the mine
+      // ---------- view control: drag to turn, wheel / pinch to zoom, right-drag / two fingers / shift-drag to pan
       const view = document.getElementById("view"),
-        tip = document.getElementById("tip");
-      let lastX = 0,
-        lastY = 0;
+        tip = document.getElementById("tip"),
+        ptrs = new Map();
+      let panMode = false,
+        pinch = null;
+      // zoom by factor f about the screen point (mx, my), keeping that point fixed
+      function zoomAt(f, mx, my) {
+        const z = Math.max(1, Math.min(8, ZOOM * f));
+        f = z / ZOOM;
+        PANX = mx - (mx - CX) * f - BX;
+        PANY = my - (my - CY) * f - (BY0 + BYZ * z);
+        ZOOM = z;
+        userCam = true;
+      }
+      const local = (e) => {
+        const r = cv.getBoundingClientRect();
+        return [e.clientX - r.left, e.clientY - r.top];
+      };
+      view.addEventListener("contextmenu", (e) => step !== S_CMP && e.preventDefault());
+      view.addEventListener(
+        "wheel",
+        (e) => {
+          if (step === S_CMP) return;
+          e.preventDefault();
+          zoomAt(Math.exp(-e.deltaY * 0.0015), ...local(e));
+        },
+        { passive: false }
+      );
       view.addEventListener("pointerdown", (e) => {
-        if (step === S_CMP) return;
-        dragging = true;
-        lastX = e.clientX;
-        lastY = e.clientY;
+        if (step === S_CMP || e.target.closest(".zoom")) return;
+        ptrs.set(e.pointerId, local(e));
         view.setPointerCapture(e.pointerId);
+        dragging = true;
+        userCam = true;
+        panMode = e.button === 2 || e.shiftKey;
+        if (ptrs.size === 2) {
+          const [a, b] = [...ptrs.values()];
+          pinch = { d: Math.hypot(a[0] - b[0], a[1] - b[1]), m: [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2] };
+        }
       });
       view.addEventListener("pointermove", (e) => {
-        if (dragging) {
-          az -= (e.clientX - lastX) * 0.008;
-          el = Math.max(0.3, Math.min(1.25, el + (e.clientY - lastY) * 0.005));
-          lastX = e.clientX;
-          lastY = e.clientY;
-        } else if (step === S_CMP) hover(e);
+        if (!ptrs.has(e.pointerId)) {
+          if (step === S_CMP) hover(e);
+          return;
+        }
+        const prev = ptrs.get(e.pointerId),
+          cur = local(e);
+        ptrs.set(e.pointerId, cur);
+        if (ptrs.size >= 2 && pinch) {
+          const [a, b] = [...ptrs.values()],
+            d = Math.hypot(a[0] - b[0], a[1] - b[1]),
+            m = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+          PANX += m[0] - pinch.m[0];
+          PANY += m[1] - pinch.m[1];
+          zoomAt(d / pinch.d, m[0], m[1]);
+          pinch = { d, m };
+        } else if (panMode) {
+          PANX += cur[0] - prev[0];
+          PANY += cur[1] - prev[1];
+        } else {
+          az -= (cur[0] - prev[0]) * 0.008;
+          el = Math.max(0.3, Math.min(1.25, el + (cur[1] - prev[1]) * 0.005));
+        }
       });
-      const stopDrag = () => (dragging = false);
+      const stopDrag = (e) => {
+        ptrs.delete(e.pointerId);
+        if (ptrs.size < 2) pinch = null;
+        if (!ptrs.size) dragging = false;
+      };
       view.addEventListener("pointerup", stopDrag);
       view.addEventListener("pointercancel", stopDrag);
       view.addEventListener("pointerleave", () => (tip.hidden = true));
+      document.getElementById("zin").onclick = () => zoomAt(1.4, cv.clientWidth / 2, cv.clientHeight / 2);
+      document.getElementById("zout").onclick = () => zoomAt(1 / 1.4, cv.clientWidth / 2, cv.clientHeight / 2);
+      document.getElementById("zreset").onclick = () => {
+        ZOOM = 1;
+        PANX = PANY = 0;
+        el = 0.68;
+        userCam = false;
+      };
 
       // ---------- steps
       function scene(W, H, seenT = null) {
@@ -1104,28 +1225,58 @@
           line3(u.traj.slice(0, n).concat([at(u.traj, t)]), UAVC[k], w);
         });
       }
-      function drawPlan(W, H, u) {
-        if (plan === "faster") {
-          // replay the replanning over the whole mission
-          const r = run(),
-            t = u * r.mission_time;
-          scene(W, H, t);
-          drawPoints(1);
-          drawTrails(r, t, 1.8);
-          drawFasterPlans(t);
-          drawStarts();
-          r.uav.forEach((v, k) => drone(at(v.traj, t), UAVC[k]));
-          label(`t = ${t.toFixed(1)} s · replanning every 0.4 s`, 14, H - 10);
-          return;
-        }
-        scene(W, H);
-        const eu = run("euclidean");
-        eu.uav.forEach((v) => {
-          line3(v.path, "rgba(232,237,242,.5)", 1.2, [4, 4]);
-          v.unsafe.forEach((p) => dot3(p, C.warn, 2, null));
+      // a method's path for drone r: the planned path, or for FASTER the path it flew
+      const pathOf = (m, r) => (m === "faster" ? run(m).uav[r].traj.map((q) => q.slice(0, 3)) : run(m).uav[r].path);
+      function resample(p, step_) {
+        const L = pathLen(p),
+          out = [];
+        for (let d = 0; d <= L; d += step_) out.push(head(p, d).pop());
+        out.push(p[p.length - 1]);
+        return out;
+      }
+      // samples of method m's path, each flagged when it is more than 1 m from the selected method's path
+      const diffCache = {};
+      function diffPath(m, r) {
+        const key = [prob, plan, m, r].join("|");
+        if (diffCache[key]) return diffCache[key];
+        const ref = resample(pathOf(plan, r), 0.25),
+          pts = resample(pathOf(m, r), 0.5);
+        const far = pts.map((q) => {
+          let best = 1e9;
+          for (const a of ref) {
+            const d = (a[0] - q[0]) ** 2 + (a[1] - q[1]) ** 2 + (a[2] - q[2]) ** 2;
+            if (d < best) best = d;
+          }
+          return best > 1;
         });
+        return (diffCache[key] = { pts, far });
+      }
+      function drawPlan(W, H, u) {
+        scene(W, H);
         drawPoints(1);
-        run().uav.forEach((v, r) => line3(head(v.path, pathLen(v.path) * Math.min(1, u * 1.3)), UAVC[r], 2.4));
+        const grow = Math.min(1, u * 1.3);
+        for (const m of PL) {
+          if (m === plan || hidden.has(m)) continue;
+          for (let r = 0; r < 2; r++) {
+            const { pts, far } = diffPath(m, r),
+              n = Math.floor(pts.length * grow);
+            // draw runs of equal flags: faint where it follows the selected path, bright where it leaves it
+            let k0 = 0;
+            for (let k = 1; k <= n; k++) {
+              if (k === n || far[k] !== far[k0]) {
+                line3(pts.slice(k0, k + 1), PCOL[m], far[k0] ? 2.6 : 1.4, null, far[k0] ? 1 : 0.28);
+                k0 = k;
+              }
+            }
+          }
+        }
+        if (!hidden.has(plan))
+          for (let r = 0; r < 2; r++) {
+            const p = pathOf(plan, r),
+              h = head(p, pathLen(p) * grow);
+            line3(h, "#0b0d10", 5.5);
+            line3(h, PCOL[plan], 3.2);
+          }
         drawStarts();
       }
       // position and heading of a drone at time t (trajectory sampled every 0.4 s)
@@ -1271,8 +1422,9 @@
           });
         });
       }
-      function bestMean(p) {
-        return Math.min(...PL.map((m) => stat(m, p).mission_time[1]));
+      // the fastest single run on a map, over all methods and RRT*'s five runs
+      function bestRun(p) {
+        return Math.min(...PL.map((m) => stat(m, p).mission_time[0]));
       }
       function drawCompare(W, H) {
         bars = [];
@@ -1280,13 +1432,13 @@
           side = W >= 560,
           cw = side ? (W - 48) / 2 : W - 28,
           ch = side ? H - top - 16 : (H - top - 24) / 2;
-        const pct = (m, p, k) => (stat(m, p).mission_time[k] / bestMean(p) - 1) * 100;
+        const pct = (m, p, k) => (stat(m, p).mission_time[k] / bestRun(p) - 1) * 100;
         chart(
           14,
           top,
           cw,
           ch,
-          "Mission time vs. fastest",
+          "Mission time, % slower than the fastest run",
           (m, p) => pct(m, p, 1),
           (m, p) => [pct(m, p, 0), pct(m, p, 2)],
           "%",
@@ -1326,18 +1478,13 @@
           dt = playing ? Math.min(0.05, (now - lastNow) / 1000) : 0;
         lastNow = now;
         let el_ = playing ? now - t0 : pausedAt;
-        if (playing && f.d && step !== S_PLAN && el_ > f.d && !dragging) {
+        if (playing && f.d && el_ > f.d && !dragging) {
           go(step + 1);
           el_ = 0;
         }
-        if (playing && !dragging && !reduce && step !== S_CMP) az += dt * 0.07;
+        if (playing && !dragging && !userCam && !reduce && step !== S_CMP) az += dt * 0.07;
         let u = 1;
-        const dur = step === S_PLAN && plan === "faster" ? 16000 : f.d;
-        if (playing && step === S_PLAN && el_ > dur && !dragging) {
-          go(step + 1);
-          el_ = 0;
-        }
-        if (!reduce && dur) u = Math.min(el_ / dur, 1);
+        if (!reduce && f.d) u = Math.min(el_ / f.d, 1);
         if (step === S_FLY) u = flyT / run().mission_time;
         nodes.forEach((nd, i) => nd.querySelector(".bar").style.setProperty("--p", i < step ? "100%" : i === step ? `${u * 100}%` : "0%"));
         ctx.fillStyle = "#0b0d10";
