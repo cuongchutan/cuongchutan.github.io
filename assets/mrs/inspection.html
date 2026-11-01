@@ -1,0 +1,1356 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Multi-Robot Inspection</title>
+    <style>
+      /* Same tokens as the other project animations; the viewport stays a dark "screen" in both themes. */
+      :root {
+        --bg: transparent;
+        --panel: #ffffff;
+        --line: rgba(0, 0, 0, 0.12);
+        --fg: #111111;
+        --muted: #6b6b6b;
+        --accent: #b509ac;
+        --warn: #b8691a;
+        --screen: #0b0d10;
+        --font: "Roboto", "Segoe UI", Helvetica, Arial, sans-serif;
+        --mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+        color-scheme: light;
+      }
+      :root[data-theme="dark"] {
+        --panel: #212529;
+        --line: #424246;
+        --fg: #e8e8e8;
+        --muted: #9a9a9a;
+        --accent: #2698ba;
+        --warn: #f0a24a;
+        color-scheme: dark;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        overflow: hidden; /* the embedding page sizes the frame to fit, so no scroll bar */
+        background: var(--bg);
+      }
+      body {
+        color: var(--fg);
+        font: 15px/1.55 var(--font);
+      }
+      [hidden] {
+        display: none !important;
+      }
+      .wrap {
+        display: grid;
+        gap: 16px;
+        padding: 4px 2px 8px;
+      }
+      .cases {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+        margin-bottom: 10px;
+      }
+      .case {
+        all: unset;
+        cursor: pointer;
+        padding: 9px 12px;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: var(--panel);
+        min-width: 0;
+      }
+      .case:focus-visible,
+      .btn:focus-visible,
+      .node:focus-visible,
+      .chip:focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 2px;
+      }
+      .case[aria-pressed="true"] {
+        border-color: var(--accent);
+        box-shadow: inset 0 0 0 1px var(--accent);
+      }
+      .case b {
+        display: block;
+        font-weight: 600;
+        font-size: 14px;
+        line-height: 1.25;
+      }
+      .case span {
+        display: block;
+        font-size: 12.5px;
+        color: var(--muted);
+      }
+      .rail {
+        position: relative;
+        display: grid;
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+        gap: 6px;
+        padding-top: 12px;
+      }
+      .rail::before {
+        content: "";
+        position: absolute;
+        left: 12%;
+        right: 12%;
+        top: 19px;
+        height: 2px;
+        background: var(--line);
+      }
+      .node {
+        all: unset;
+        cursor: pointer;
+        position: relative;
+        display: grid;
+        justify-items: center;
+        gap: 5px;
+        text-align: center;
+        min-width: 0;
+      }
+      .dot {
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        background: var(--panel);
+        border: 2px solid var(--line);
+        z-index: 1;
+      }
+      .node.done .dot {
+        border-color: var(--accent);
+        background: color-mix(in srgb, var(--accent) 35%, var(--panel));
+      }
+      .node.on .dot {
+        border-color: var(--accent);
+        background: var(--accent);
+      }
+      .node small {
+        font: 600 11px/1 var(--mono);
+        letter-spacing: 0.08em;
+        color: var(--muted);
+        text-transform: uppercase;
+      }
+      .node.on small {
+        color: var(--fg);
+      }
+      .bar {
+        display: block;
+        height: 3px;
+        width: 70%;
+        background: var(--line);
+        border-radius: 2px;
+        position: relative;
+        overflow: hidden;
+      }
+      .bar::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        width: var(--p, 0%);
+        background: var(--accent);
+      }
+      .view {
+        position: relative;
+        aspect-ratio: 16 / 10;
+        background: var(--screen);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        overflow: hidden;
+      }
+      .view canvas {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+      }
+      .hud {
+        position: absolute;
+        left: 10px;
+        top: 9px;
+        right: 10px;
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+        font: 500 11.5px/1.3 var(--mono);
+        color: #d3d8de;
+        pointer-events: none;
+      }
+      .hud span {
+        background: rgba(10, 12, 15, 0.72);
+        padding: 4px 8px;
+        border-radius: 6px;
+      }
+      .controls {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        margin-top: 10px;
+        flex-wrap: wrap;
+      }
+      .btn {
+        all: unset;
+        cursor: pointer;
+        font-size: 13px;
+        line-height: 1;
+        padding: 8px 12px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--panel);
+      }
+      .chips {
+        display: flex;
+        justify-content: center;
+        flex-wrap: wrap;
+        gap: 6px 8px;
+        margin-top: 10px;
+      }
+      .chip {
+        all: unset;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 12.5px;
+        padding: 4px 10px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        background: var(--panel);
+      }
+      .chip i {
+        width: 14px;
+        height: 4px;
+        border-radius: 2px;
+        box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.25);
+      }
+      .chip[aria-pressed="false"] {
+        opacity: 0.45;
+      }
+      .chip.static {
+        cursor: default;
+      }
+      .info {
+        display: grid;
+        gap: 12px;
+        min-width: 0;
+      }
+      .info .num {
+        font: 600 12px/1 var(--mono);
+        color: var(--accent);
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+      }
+      .info h3 {
+        font-size: 22px;
+        line-height: 1.2;
+        font-weight: 500;
+        margin: 0;
+      }
+      .info p {
+        margin: 0;
+        color: var(--muted);
+        text-align: justify;
+        hyphens: auto;
+      }
+      .tables {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px 24px;
+      }
+      .tables h4 {
+        margin: 0 0 4px;
+        font: 600 11px/1.4 var(--mono);
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+      dl {
+        margin: 0;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        border-top: 1px solid var(--line);
+      }
+      dl div {
+        display: contents;
+      }
+      dt,
+      dd {
+        padding: 8px 0;
+        border-bottom: 1px solid var(--line);
+      }
+      dt {
+        color: var(--muted);
+        font-size: 13.5px;
+        padding-right: 12px;
+      }
+      dd {
+        margin: 0;
+        font: 600 14px/1.4 var(--mono);
+        font-variant-numeric: tabular-nums;
+        text-align: right;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13.5px;
+      }
+      th,
+      td {
+        padding: 7px 0;
+        border-bottom: 1px solid var(--line);
+        text-align: right;
+      }
+      th {
+        font-weight: 400;
+        color: var(--muted);
+      }
+      th:first-child,
+      td:first-child {
+        text-align: left;
+      }
+      td {
+        font: 600 14px/1.4 var(--mono);
+        font-variant-numeric: tabular-nums;
+      }
+      td:first-child {
+        font: 400 13.5px/1.4 var(--font);
+      }
+      th + th,
+      td + td {
+        padding-left: 14px;
+      }
+      tr.me td {
+        color: var(--accent);
+      }
+      thead tr {
+        border-top: 1px solid var(--line);
+      }
+      .note {
+        font-size: 13px;
+        color: var(--muted);
+        border-left: 3px solid var(--warn);
+        padding-left: 10px;
+      }
+      .tables.one {
+        grid-template-columns: 1fr;
+      }
+      @media (max-width: 560px) {
+        .view {
+          aspect-ratio: 1 / 1;
+        }
+        .view.tall {
+          aspect-ratio: 3 / 4;
+        }
+        .node small {
+          font-size: 9.5px;
+          letter-spacing: 0.02em;
+          text-align: center;
+          line-height: 1.2;
+        }
+        #hudR {
+          display: none;
+        }
+      }
+      @media (max-width: 760px) {
+        .tables {
+          grid-template-columns: 1fr;
+        }
+      }
+      .th4 {
+        margin: 0 0 4px;
+        font: 600 11px/1.4 var(--mono);
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+      .pickers {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: space-between;
+        gap: 8px 16px;
+        margin-bottom: 10px;
+      }
+      .seg {
+        display: inline-flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 6px;
+      }
+      .seg > span {
+        font: 600 11px/1 var(--mono);
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin-right: 2px;
+      }
+      .seg button {
+        all: unset;
+        cursor: pointer;
+        font-size: 13px;
+        line-height: 1;
+        padding: 7px 11px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--panel);
+      }
+      .seg button[aria-pressed="true"] {
+        border-color: var(--accent);
+        box-shadow: inset 0 0 0 1px var(--accent);
+      }
+      .seg button:focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 2px;
+      }
+      .seg.off {
+        opacity: 0.4;
+      }
+      .view {
+        touch-action: pan-y;
+        cursor: grab;
+      }
+      .tip {
+        position: absolute;
+        pointer-events: none;
+        background: rgba(10, 12, 15, 0.92);
+        color: #e8edf2;
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        border-radius: 6px;
+        padding: 6px 8px;
+        font: 500 12px/1.4 var(--mono);
+        white-space: nowrap;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <nav class="rail" id="rail" aria-label="Steps"></nav>
+
+      <div>
+        <div class="pickers">
+          <div class="seg" id="probs" role="group" aria-label="Challenge"><span>Map</span></div>
+          <div class="seg" id="plans" role="group" aria-label="Path planner"><span>Planner</span></div>
+        </div>
+        <div class="view" id="view">
+          <canvas id="cv" aria-label="Animation of the current step"></canvas>
+          <div class="hud"><span id="hudL"></span><span id="hudR"></span></div>
+          <div class="tip" id="tip" hidden></div>
+        </div>
+        <div class="chips" id="chips"></div>
+        <div class="controls">
+          <button class="btn" id="play">Pause</button>
+          <button class="btn" id="prev">Previous</button>
+          <button class="btn" id="next">Next</button>
+        </div>
+      </div>
+
+      <div class="info">
+        <div class="num" id="snum"></div>
+        <h3 id="stitle"></h3>
+        <p id="stext"></p>
+        <div class="tables" id="tables">
+          <div>
+            <h4 id="h1"></h4>
+            <dl id="f1"></dl>
+          </div>
+          <div>
+            <h4 id="h2"></h4>
+            <dl id="f2"></dl>
+          </div>
+        </div>
+        <div id="tableWrap" hidden>
+          <h4 class="th4" id="th"></h4>
+          <table id="tbl"></table>
+        </div>
+        <p class="note" id="snote"></p>
+      </div>
+    </div>
+
+    <script src="inspection-data.js"></script>
+    <script>
+      const FRAME = "mrs";
+
+      // ---------- planners, challenges and colours
+      const PL = ["astar", "thetastar", "rrtstar6", "faster"];
+      const PNAME = { astar: "A*", thetastar: "Theta*", rrtstar6: "RRT*", faster: "FASTER", euclidean: "Straight lines" };
+      const PCOL = { astar: "#3987e5", thetastar: "#d95926", rrtstar6: "#199e70", faster: "#c98500" }; // validated on the dark screen
+      const PROBS = ["small", "moderate", "large"];
+      const PROBNAME = { small: "Small", moderate: "Moderate", large: "Large" };
+      const UAVC = ["#ef6a5e", "#4c95ff"]; // the red and the blue UAV
+      const IPC = { 1: "#ef6a5e", 2: "#4c95ff", both: "#b98cf0" };
+      const C = { warn: "#f0a24a", path: "#e8edf2", lit: "#7ee0a1", safe: "#69c48a" };
+      const SPEED = 4; // flight replay speed
+      let prob = "large",
+        plan = "thetastar";
+      const P = () => DATA.problems[prob];
+      const run = (m = plan) => P().runs[m];
+      const stat = (m = plan, p = prob) => DATA.problems[p].stats[m];
+
+      const FLOW = [
+        {
+          d: 9000,
+          node: "Mission",
+          t: "Inspect a surface mine with two drones",
+          hud: () => `${P().ips.length} INSPECTION POINTS · 2 UAVs`,
+          text: "In the IEEE RAS Summer School on Multi-Robot Systems (CTU Prague, 2025), two drones had to photograph every inspection point in a simulated surface mine, as fast as possible. Each point has a viewpoint 4 m away, where the camera must be within 0.3 m and 0.2 rad of the right heading. Red points belong to the red drone, blue points to the blue drone, and purple points can go to either.",
+        },
+        {
+          d: 11000,
+          node: "Split & order",
+          t: "Who goes where, and in which order",
+          hud: () => "ASSIGNMENT · K-MEANS   ORDER · LKH",
+          text: "First, k-means splits the purple points into two groups, and each drone takes the group nearer to it. Then a travelling-salesman solver (LKH) orders each drone's viewpoints into a closed tour. The order uses straight-line distances, so it is the same for every planner below. Flown as straight lines, these tours cut through or come too close to the terrain where the amber dots are.",
+        },
+        {
+          d: 9000,
+          node: "Plan paths",
+          t: "Replace each straight leg with a safe path",
+          hud: () => (plan === "faster" ? "FASTER · MAP UNKNOWN AT TAKEOFF" : `PATH PLANNER · ${PNAME[plan]} · MAP KNOWN`),
+          text: null, // per planner, below
+        },
+        {
+          d: 0,
+          node: "Fly",
+          t: "Smooth trajectories, flown together",
+          hud: () => `FLIGHT · ${PNAME[plan]}`,
+          text: null, // per planner, below
+        },
+        {
+          d: 14000,
+          node: "Compare",
+          t: "Which planner flies the mission fastest?",
+          hud: () => "ALL CHALLENGES · ALL PLANNERS",
+          text: "A*, Theta* and RRT* plan on the known map before takeoff; FASTER knows only the viewpoints and maps the mine during the flight. All four used the same assignment, tour order and collision avoidance, on all three maps. RRT* is random, so it ran five times per map, and the whiskers show its fastest and slowest runs. Every method kept 1.5 m from the terrain and 2.5 m between the drones.",
+        },
+      ];
+      const PLAN_TEXT = {
+        astar:
+          "A* searches a 3D grid of 0.3 m cells, moving to any of the 26 neighbouring cells, after the obstacles are grown by 1.9 m. Grid paths zigzag in 45° steps, so each path is then straightened by cutting corners wherever the straight line stays free.",
+        thetastar:
+          "Theta* searches the same grid as A*, but a cell may connect straight back to any earlier cell it can see. Its paths are therefore not bound to the grid's 45° steps and need no straightening. The lazy variant used here checks line of sight only when a cell is expanded, which makes it much faster than A* here.",
+        rrtstar6:
+          "RRT* grows a random tree from the start in 3 m branches, sampling around the straight line between the two viewpoints. For every new branch it picks the cheapest parent within 6 m and rewires its neighbours through it if that shortens their path, so the paths approach the shortest one as the tree grows.",
+        faster:
+          "FASTER (Tordesillas et al., IROS 2019) starts with an empty map: the drones know only their viewpoints, and a 360° LiDAR maps the mine as they fly. Every 0.4 s it searches a path to the next viewpoint, treating unknown space as free. The drone commits only to the part inside space it has already seen (green) and always keeps enough room to brake there, so it never flies into the unknown faster than it can stop. Dark terrain has not been seen yet.",
+      };
+      const FLY_TEXT = {
+        known:
+          "The paths are smoothed and time-parametrized with TOPPRA, so the drones never stop at a viewpoint and stay within the speed and acceleration limits. The heading is interpolated between viewpoints so the camera already faces the next point when the drone arrives. If the two trajectories come closer than 2.5 m, one drone waits at the start until they no longer collide.",
+        faster:
+          "FASTER builds the trajectory while flying: the drone follows the newest path within the speed and acceleration limits, slows to pass each viewpoint, and turns the camera at no more than 1 rad/s. The terrain lights up where the LiDAR has seen it. The same collision avoidance as for the other planners delays one drone at the start if the two would come closer than 2.5 m.",
+      };
+      const S_SPLIT = 1,
+        S_PLAN = 2,
+        S_FLY = 3,
+        S_CMP = 4;
+      const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+      // ---------- theme: follow the embedding page (al-folio sets data-theme on <html>), else the OS
+      function applyTheme() {
+        let t = null;
+        try {
+          t = parent !== window && parent.document.documentElement.getAttribute("data-theme");
+        } catch (e) {}
+        if (!t) t = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+        document.documentElement.setAttribute("data-theme", t);
+      }
+      applyTheme();
+      try {
+        if (parent !== window)
+          new MutationObserver(applyTheme).observe(parent.document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+      } catch (e) {}
+      matchMedia("(prefers-color-scheme: dark)").addEventListener("change", applyTheme);
+      function postHeight() {
+        if (parent !== window)
+          parent.postMessage({ thesisFrame: FRAME, h: Math.ceil(document.querySelector(".wrap").getBoundingClientRect().height) + 4 }, "*");
+      }
+      new ResizeObserver(postHeight).observe(document.querySelector(".wrap"));
+
+      // ---------- terrain: 1 m height map of the mine, drawn as shaded quads
+      const T = DATA.terrain,
+        TX = T.nx,
+        TY = T.ny,
+        TH = Float32Array.from(T.h, (v) => v / 10);
+      const vx = (i) => T.x0 + (i + 0.5) * T.res,
+        vy = (j) => T.y0 + (j + 0.5) * T.res;
+      const NQ = (TX - 1) * (TY - 1),
+        qc = new Float32Array(NQ * 3),
+        qcol = [],
+        qdark = []; // unseen terrain in the FASTER replay
+      {
+        const L = [-0.45, -0.55, 0.7],
+          ln = Math.hypot(...L);
+        let q = 0;
+        for (let j = 0; j < TY - 1; j++)
+          for (let i = 0; i < TX - 1; i++, q++) {
+            const z00 = TH[j * TX + i],
+              z10 = TH[j * TX + i + 1],
+              z11 = TH[(j + 1) * TX + i + 1],
+              z01 = TH[(j + 1) * TX + i];
+            // normal from the two diagonals
+            const ax = 1,
+              ay = 1,
+              az_ = z11 - z00,
+              bx = -1,
+              by = 1,
+              bz = z01 - z10;
+            let nx = ay * bz - az_ * by,
+              ny = az_ * bx - ax * bz,
+              nz = ax * by - ay * bx;
+            const nn = Math.hypot(nx, ny, nz);
+            const lam = Math.max(0, (nx * L[0] + ny * L[1] + nz * L[2]) / (nn * ln));
+            const zm = (z00 + z10 + z11 + z01) / 4,
+              h = Math.min(1, Math.max(0, (zm + 4) / 22));
+            const base = 62 + 70 * h,
+              sh = 0.42 + 0.58 * lam;
+            qcol.push(`rgb(${Math.round(base * sh)},${Math.round((base - 2) * sh)},${Math.round((base - 6) * sh)})`);
+            qdark.push(`rgb(${Math.round(base * sh * 0.32)},${Math.round(base * sh * 0.34)},${Math.round(base * sh * 0.4)})`);
+            qc[3 * q] = vx(i) + 0.5;
+            qc[3 * q + 1] = vy(j) + 0.5;
+            qc[3 * q + 2] = zm;
+          }
+      }
+
+      // ---------- camera: orthographic, orbiting; drag to turn
+      let az = -0.55,
+        el = 0.68,
+        CX = 0,
+        CY = 0,
+        SC = 1;
+      function camera(W, H) {
+        const top = 34,
+          bot = 26,
+          ca = Math.abs(Math.cos(az)),
+          sa = Math.abs(Math.sin(az));
+        const ex = ca * 75 + sa * 50,
+          ey = (sa * 75 + ca * 50) * Math.sin(el) + 20 * Math.cos(el);
+        SC = Math.min((W - 16) / ex, (H - top - bot) / ey);
+        CX = W / 2;
+        CY = top + (H - top - bot) / 2 + 4 * Math.cos(el) * SC;
+      }
+      function proj(x, y, z) {
+        const ca = Math.cos(az),
+          sa = Math.sin(az),
+          xr = x * ca - y * sa,
+          yr = x * sa + y * ca;
+        return [CX + xr * SC, CY - (yr * Math.sin(el) + z * Math.cos(el)) * SC];
+      }
+      const PX = new Float32Array(TX * TY),
+        PY = new Float32Array(TX * TY),
+        order = new Uint32Array(NQ).map((_, k) => k),
+        depth = new Float32Array(NQ);
+      let sortedAz = null;
+      // seenT: when given, terrain the LiDAR has not seen by that mission time is drawn dark
+      function drawTerrain(seenT = null) {
+        const seen = seenT === null ? null : run("faster").seen;
+        for (let j = 0; j < TY; j++)
+          for (let i = 0; i < TX; i++) {
+            const [a, b] = proj(vx(i), vy(j), TH[j * TX + i]);
+            PX[j * TX + i] = a;
+            PY[j * TX + i] = b;
+          }
+        if (sortedAz !== az) {
+          const ca = Math.cos(az),
+            sa = Math.sin(az);
+          for (let q = 0; q < NQ; q++) depth[q] = (qc[3 * q] * sa + qc[3 * q + 1] * ca) * Math.cos(el) - qc[3 * q + 2] * Math.sin(el);
+          order.sort((a, b) => depth[b] - depth[a]);
+          sortedAz = az;
+        }
+        ctx.lineWidth = 0.7;
+        for (let k = 0; k < NQ; k++) {
+          const q = order[k],
+            i = q % (TX - 1),
+            j = (q / (TX - 1)) | 0,
+            a = j * TX + i,
+            b = a + 1,
+            c = a + TX + 1,
+            d = a + TX;
+          ctx.beginPath();
+          ctx.moveTo(PX[a], PY[a]);
+          ctx.lineTo(PX[b], PY[b]);
+          ctx.lineTo(PX[c], PY[c]);
+          ctx.lineTo(PX[d], PY[d]);
+          ctx.closePath();
+          ctx.fillStyle = ctx.strokeStyle = seen && seen[j * TX + i] > seenT * 10 ? qdark[q] : qcol[q];
+          ctx.fill();
+          ctx.stroke();
+        }
+      }
+
+      // ---------- drawing helpers
+      const cv = document.getElementById("cv"),
+        ctx = cv.getContext("2d");
+      function fit() {
+        const r = cv.getBoundingClientRect(),
+          d = devicePixelRatio || 1;
+        if (cv.width !== Math.round(r.width * d) || cv.height !== Math.round(r.height * d)) {
+          cv.width = Math.round(r.width * d);
+          cv.height = Math.round(r.height * d);
+        }
+        ctx.setTransform(d, 0, 0, d, 0, 0);
+        return [r.width, r.height];
+      }
+      const MONO = "ui-monospace, Menlo, Consolas, monospace";
+      function label(txt, x, y, col = "#d3d8de", align = "left", font = `500 11.5px ${MONO}`) {
+        ctx.font = font;
+        ctx.fillStyle = col;
+        ctx.textAlign = align;
+        ctx.fillText(txt, x, y);
+        ctx.textAlign = "left";
+      }
+      function line3(pts, col, w, dash, alpha = 1) {
+        if (!pts || pts.length < 2) return;
+        ctx.save();
+        ctx.globalAlpha = alpha;
+        ctx.beginPath();
+        pts.forEach((p, k) => {
+          const [x, y] = proj(p[0], p[1], p[2]);
+          k ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+        });
+        ctx.strokeStyle = col;
+        ctx.lineWidth = w;
+        ctx.lineJoin = ctx.lineCap = "round";
+        ctx.setLineDash(dash || []);
+        ctx.stroke();
+        ctx.restore();
+      }
+      function dot3(p, col, r, ring = "#0b0d10") {
+        const [x, y] = proj(p[0], p[1], p[2]);
+        ctx.beginPath();
+        ctx.arc(x, y, r, 0, 2 * Math.PI);
+        ctx.fillStyle = col;
+        ctx.fill();
+        if (ring) {
+          ctx.strokeStyle = ring;
+          ctx.lineWidth = 1.5;
+          ctx.stroke();
+        }
+      }
+      function diamond3(p, col, r) {
+        const [x, y] = proj(p[0], p[1], p[2]);
+        ctx.beginPath();
+        ctx.moveTo(x, y - r);
+        ctx.lineTo(x + r, y);
+        ctx.lineTo(x, y + r);
+        ctx.lineTo(x - r, y);
+        ctx.closePath();
+        ctx.fillStyle = col;
+        ctx.fill();
+        ctx.strokeStyle = "#0b0d10";
+        ctx.lineWidth = 1.2;
+        ctx.stroke();
+      }
+      const segLen = (a, b) => Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]);
+      const pathLen = (p) => p.slice(1).reduce((s, q, k) => s + segLen(p[k], q), 0);
+      // the first `d` metres of a path
+      function head(p, d) {
+        const out = [p[0]];
+        for (let k = 1; k < p.length; k++) {
+          const L = segLen(p[k - 1], p[k]);
+          if (d <= L) {
+            const f = d / L;
+            out.push(p[k - 1].map((v, i) => v + (p[k][i] - v) * f));
+            return out;
+          }
+          d -= L;
+          out.push(p[k]);
+        }
+        return out;
+      }
+      const mix = (a, b, f) => {
+        const pa = a.match(/\w\w/g).map((h) => parseInt(h, 16)),
+          pb = b.match(/\w\w/g).map((h) => parseInt(h, 16));
+        return `rgb(${pa.map((v, i) => Math.round(v + (pb[i] - v) * f)).join(",")})`;
+      };
+
+      // which drone inspects each point in the shown run
+      function owner(m = plan) {
+        const o = {};
+        run(m).uav.forEach((u, r) => u.vps.forEach((v) => (o[v[4]] = r)));
+        return o;
+      }
+      const ipCol = (ip) => (ip.by.length > 1 ? IPC.both : IPC[ip.by[0]]);
+      function drawStarts() {
+        P().starts.forEach((s, r) => {
+          const [x, y] = proj(s[0], s[1], s[2]);
+          ctx.fillStyle = UAVC[r];
+          ctx.strokeStyle = "#0b0d10";
+          ctx.lineWidth = 1.5;
+          ctx.fillRect(x - 5, y - 5, 10, 10);
+          ctx.strokeRect(x - 5, y - 5, 10, 10);
+        });
+      }
+      // inspection points, with their viewpoints; `assign` (0..1) fades purple points into their drone's colour
+      function drawPoints(assign = 0, lit = null) {
+        const o = owner(),
+          vps = {};
+        run().uav.forEach((u) => u.vps.forEach((v) => (vps[v[4]] = v)));
+        for (const ip of P().ips) {
+          const v = vps[ip.id];
+          let col = ipCol(ip);
+          if (assign > 0 && ip.by.length > 1) col = mix(col, UAVC[o[ip.id]], assign);
+          if (v) line3([ip.xyz, v], "rgba(255,255,255,.35)", 1);
+          const on = lit && lit.has(ip.id);
+          diamond3(ip.xyz, on ? C.lit : col, on ? 6 : 4.5);
+          if (v) dot3(v, col, 2.4, null);
+        }
+      }
+
+      // ---------- state, rail, pickers and info panel
+      let step = 0,
+        t0 = performance.now(),
+        playing = !reduce,
+        pausedAt = 0,
+        flyT = 0,
+        doneAt = null,
+        dragging = false;
+      const rail = document.getElementById("rail");
+      FLOW.forEach((f, i) => {
+        const b = document.createElement("button");
+        b.className = "node";
+        b.innerHTML = `<span class="dot"></span><small>${f.node}</small><span class="bar"></span>`;
+        b.addEventListener("click", () => go(i));
+        rail.appendChild(b);
+      });
+      const nodes = [...rail.querySelectorAll(".node")];
+      function picker(id, keys, names, get, set) {
+        const g = document.getElementById(id);
+        keys.forEach((k) => {
+          const b = document.createElement("button");
+          b.textContent = names[k];
+          b.dataset.k = k;
+          b.addEventListener("click", () => {
+            set(k);
+            g.querySelectorAll("button").forEach((x) => x.setAttribute("aria-pressed", String(x.dataset.k === get())));
+            go(step);
+          });
+          b.setAttribute("aria-pressed", String(k === get()));
+          g.appendChild(b);
+        });
+        return g;
+      }
+      const probG = picker(
+        "probs",
+        PROBS,
+        Object.fromEntries(PROBS.map((p) => [p, `${PROBNAME[p]} · ${DATA.problems[p].ips.length}`])),
+        () => prob,
+        (k) => (prob = k)
+      );
+      const planG = picker(
+        "plans",
+        PL,
+        PNAME,
+        () => plan,
+        (k) => (plan = k)
+      );
+
+      const row = (a, b) => `<div><dt>${a}</dt><dd>${b}</dd></div>`;
+      const s1 = (v) => v.toFixed(1);
+      function panel() {
+        const p = P(),
+          r = run(),
+          st = stat(),
+          eu = run("euclidean");
+        const nRed = p.ips.filter((i) => i.by.length === 1 && i.by[0] === 1).length,
+          nBlue = p.ips.filter((i) => i.by.length === 1 && i.by[0] === 2).length;
+        const tourLen = (m) => run(m).uav.reduce((s, u) => s + pathLen(u.path), 0);
+        const unsafe = eu.uav.reduce((s, u) => s + u.unsafe.length, 0);
+        const spread = (k, d = 1) => (st.n > 1 ? `${st[k][1].toFixed(d)} (${st[k][0].toFixed(d)}–${st[k][2].toFixed(d)})` : st[k][1].toFixed(d));
+        return [
+          [
+            "Task",
+            [
+              ["Inspection points", `${p.ips.length}`],
+              ["Red · blue · purple", `${nRed} · ${nBlue} · ${p.ips.length - nRed - nBlue}`],
+              ["Viewpoint distance", "4 m"],
+              ["Inspection tolerance", "0.3 m, 0.2 rad"],
+            ],
+            "Limits (virtual challenge)",
+            [
+              ["Speed, horizontal / vertical", "5 / 2 m/s"],
+              ["Acceleration", "5 / 2 m/s²"],
+              ["Distance to terrain", "≥ 1.5 m"],
+              ["Distance between drones", "≥ 2.5 m"],
+            ],
+            "Drag the view to turn the mine. The terrain is the competition's mesh, sampled every metre.",
+          ],
+          [
+            "Assignment",
+            [
+              ["Purple points split by", "k-means"],
+              ["Viewpoints, red drone", `${r.uav[0].vps.length}`],
+              ["Viewpoints, blue drone", `${r.uav[1].vps.length}`],
+            ],
+            "Straight tours",
+            [
+              ["Order", "LKH (TSP solver)"],
+              ["Tour length, both drones", `${tourLen("euclidean").toFixed(0)} m`],
+              ["Samples too close to terrain", `${unsafe}`],
+            ],
+            unsafe
+              ? "Amber dots mark where a straight leg passes closer than 1.5 m to the mine's surface, sampled every 0.2 m."
+              : "On this map no straight leg comes closer than 1.5 m to the mine; try the large map.",
+          ],
+          [
+            `${PNAME[plan]} on this map`,
+            [
+              plan === "faster"
+                ? ["Flown distance, both drones", `${r.uav.reduce((a, u) => a + u.length, 0).toFixed(0)} m`]
+                : ["Path length, both drones", `${tourLen(plan).toFixed(0)} m`],
+              ["Closest to terrain", `${Math.min(...r.uav.map((u) => u.min_obs)).toFixed(2)} m`],
+              [plan === "faster" ? "Replanning time, in total" : "Computation time", `${s1(r.planning_time)} s`],
+            ],
+            "Settings",
+            plan === "faster"
+              ? [
+                  ["Map at takeoff", "unknown"],
+                  ["LiDAR", "360° × 90°, 10 m"],
+                  ["Replanning", `every 0.4 s (${r.replans}×)`],
+                  ["Clearance kept", "1.7 m from seen surface"],
+                ]
+              : plan === "astar" || plan === "thetastar"
+                ? [
+                    ["Grid cell", "0.3 m"],
+                    ["Obstacles grown by", "1.9 m"],
+                    ["Neighbours", "26"],
+                  ]
+                : [
+                    ["Branch length", "3 m"],
+                    ["Sampling", "Gaussian, around the line"],
+                    ["Rewiring radius", plan === "rrtstar6" ? "6 m" : "none"],
+                  ],
+            plan === "faster"
+              ? `With the whole map known from the start, the same planner flew this map in ${P().faster_known_map.toFixed(1)} s instead of ${s1(r.mission_time)} s: the LiDAR sees 10 m, much farther than the drone needs to brake from 5 m/s, so not knowing the map costs little here. Simplified: FASTER optimizes its trajectories with a mixed-integer solver; here the drone follows the planned path under the same limits.`
+              : plan === "rrtstar6"
+                ? "Our team's config set the RRT* rewiring radius to 1 m, shorter than the 3 m branches, so it never rewired and gave exactly the same paths as RRT in all runs. These results use 6 m."
+                : "Computation time covers the whole pipeline: assignment, ordering, path planning and trajectory generation.",
+          ],
+          [
+            "Flight",
+            [
+              ["Mission time", `${s1(r.mission_time)} s`],
+              ["Points inspected", `${r.score} / ${p.ips.length}`],
+              ["Closest between drones", `${r.min_mutual.toFixed(1)} m`],
+            ],
+            "Per drone",
+            r.uav.map((u, k) => [`${k ? "Blue" : "Red"}: time, length`, `${s1(u.time)} s, ${u.length.toFixed(0)} m`]),
+            `Shown at ${SPEED}× speed. Points light up green when the drone passes their viewpoint within the tolerance.${plan === "rrtstar6" ? " Shown: the first of RRT*'s five runs." : ""}`,
+          ],
+          null,
+        ];
+      }
+      function table() {
+        const p = P(),
+          head = "<thead><tr><th>Planner</th><th>Mission</th><th>Points</th><th>Compute</th></tr></thead>";
+        const rows = PL.map((m) => {
+          const s = stat(m),
+            sp = (k, d = 1) => (s.n > 1 ? `${s[k][1].toFixed(d)} <small>(${s[k][0].toFixed(d)}–${s[k][2].toFixed(d)})</small>` : s[k][1].toFixed(d));
+          return `<tr class="${m === plan ? "me" : ""}"><td>${PNAME[m]}${s.n > 1 ? ` <small>×${s.n}</small>` : ""}</td><td>${sp("mission_time")} s</td><td>${s.score[1] % 1 ? s.score[1].toFixed(1) : s.score[1]} / ${p.ips.length}</td><td>${s.planning_time[1].toFixed(0)} s</td></tr>`;
+        });
+        return head + "<tbody>" + rows.join("") + "</tbody>";
+      }
+      function renderPanel() {
+        const f = FLOW[step];
+        document.getElementById("snum").textContent = `Step ${step + 1} / ${FLOW.length} · ${f.node}`;
+        document.getElementById("stitle").textContent = f.t;
+        document.getElementById("stext").textContent =
+          f.text || (step === S_FLY ? FLY_TEXT[plan === "faster" ? "faster" : "known"] : PLAN_TEXT[plan]);
+        document.getElementById("hudL").textContent = f.hud();
+        document.getElementById("hudR").textContent = step === S_FLY ? `${SPEED}× speed` : step === S_CMP ? "" : `${PROBNAME[prob]} map`;
+        const pn = panel()[step];
+        document.getElementById("tables").hidden = !pn;
+        document.getElementById("tableWrap").hidden = !!pn;
+        if (pn) {
+          document.getElementById("h1").textContent = pn[0];
+          document.getElementById("f1").innerHTML = pn[1].map((r) => row(...r)).join("");
+          document.getElementById("h2").textContent = pn[2];
+          document.getElementById("f2").innerHTML = pn[3].map((r) => row(...r)).join("");
+          document.getElementById("snote").textContent = pn[4];
+        } else {
+          document.getElementById("th").textContent = `${PROBNAME[prob]} map · ${P().ips.length} points`;
+          document.getElementById("tbl").innerHTML = table();
+          document.getElementById("snote").textContent =
+            "Mission: time until both drones are back at their starts (RRT*: mean and range of five runs). Compute: time to produce both trajectories on a laptop before takeoff; for FASTER, the replanning time spent during the flight.";
+        }
+        planG.classList.toggle("off", step < S_PLAN);
+        const chip = (n, c) => `<span class="chip static"><i style="background:${c}"></i>${n}</span>`;
+        const CH = [
+          [
+            ["Red drone only", IPC[1]],
+            ["Blue drone only", IPC[2]],
+            ["Either drone", IPC.both],
+            ["Start", "#d3d8de"],
+          ],
+          [
+            ["Red tour", UAVC[0]],
+            ["Blue tour", UAVC[1]],
+            ["Too close to terrain", C.warn],
+          ],
+          plan === "faster"
+            ? [
+                ["Committed (seen)", C.safe],
+                ["Rest of the plan", C.path],
+                ["Red / blue flown", UAVC[0]],
+                ["Not seen yet", "#2b2f36"],
+              ]
+            : [
+                ["Red path", UAVC[0]],
+                ["Blue path", UAVC[1]],
+                ["Straight tour", "rgba(232,237,242,.5)"],
+              ],
+          [
+            ["Red drone", UAVC[0]],
+            ["Blue drone", UAVC[1]],
+            ["Inspected", C.lit],
+          ],
+          PL.map((m) => [PNAME[m], PCOL[m]]),
+        ];
+        document.getElementById("chips").innerHTML = CH[step].map((c) => chip(...c)).join("");
+        nodes.forEach((nd, i) => {
+          nd.classList.toggle("on", i === step);
+          nd.classList.toggle("done", i < step);
+          nd.setAttribute("aria-current", i === step ? "step" : "false");
+        });
+        postHeight();
+      }
+      function go(i) {
+        step = (i + FLOW.length) % FLOW.length;
+        t0 = performance.now();
+        pausedAt = 0;
+        doneAt = null;
+        flyT = reduce && step === S_FLY ? run().mission_time : 0;
+        tip.hidden = true;
+        renderPanel();
+      }
+      document.getElementById("prev").onclick = () => go(step - 1);
+      document.getElementById("next").onclick = () => go(step + 1);
+      const playBtn = document.getElementById("play");
+      playBtn.onclick = () => {
+        playing = !playing;
+        playBtn.textContent = playing ? "Pause" : "Play";
+        if (playing) t0 = performance.now() - pausedAt;
+        else pausedAt = performance.now() - t0;
+      };
+      playBtn.textContent = playing ? "Pause" : "Play";
+
+      // drag to turn the mine
+      const view = document.getElementById("view"),
+        tip = document.getElementById("tip");
+      let lastX = 0,
+        lastY = 0;
+      view.addEventListener("pointerdown", (e) => {
+        if (step === S_CMP) return;
+        dragging = true;
+        lastX = e.clientX;
+        lastY = e.clientY;
+        view.setPointerCapture(e.pointerId);
+      });
+      view.addEventListener("pointermove", (e) => {
+        if (dragging) {
+          az -= (e.clientX - lastX) * 0.008;
+          el = Math.max(0.3, Math.min(1.25, el + (e.clientY - lastY) * 0.005));
+          lastX = e.clientX;
+          lastY = e.clientY;
+        } else if (step === S_CMP) hover(e);
+      });
+      const stopDrag = () => (dragging = false);
+      view.addEventListener("pointerup", stopDrag);
+      view.addEventListener("pointercancel", stopDrag);
+      view.addEventListener("pointerleave", () => (tip.hidden = true));
+
+      // ---------- steps
+      function scene(W, H, seenT = null) {
+        camera(W, H);
+        drawTerrain(seenT);
+      }
+      function drawMission(W, H) {
+        scene(W, H);
+        drawPoints();
+        drawStarts();
+      }
+      function drawSplit(W, H, u) {
+        scene(W, H);
+        const eu = run("euclidean");
+        drawPoints(Math.min(1, u / 0.3));
+        const g = Math.max(0, (u - 0.3) / 0.45);
+        eu.uav.forEach((v, r) => line3(head(v.path, pathLen(v.path) * Math.min(1, g)), UAVC[r], 2.2));
+        if (u > 0.78) eu.uav.forEach((v) => v.unsafe.forEach((p) => dot3(p, C.warn, 2.6, null)));
+        drawStarts();
+      }
+      // FASTER: the newest plan of each drone at mission time t
+      function planAt(r, t) {
+        const ps = run("faster").plans[r];
+        let k = 0;
+        while (k + 1 < ps.length && ps[k + 1][0] <= t) k++;
+        return ps[k];
+      }
+      function drawFasterPlans(t) {
+        const r = run("faster");
+        r.uav.forEach((u, k) => {
+          const pos = at(u.traj, t),
+            [, safe, path] = planAt(k, t),
+            p = [pos.slice(0, 3), ...path.slice(1)],
+            L = pathLen(p);
+          line3(p, C.path, 1.4, [5, 4], 0.85);
+          line3(head(p, Math.min(L, safe)), C.safe, 3);
+        });
+      }
+      function drawTrails(r, t, w = 2.4) {
+        r.uav.forEach((u, k) => {
+          const n = Math.min(u.traj.length, Math.floor(t / 0.4) + 1);
+          line3(u.traj.slice(0, n).concat([at(u.traj, t)]), UAVC[k], w);
+        });
+      }
+      function drawPlan(W, H, u) {
+        if (plan === "faster") {
+          // replay the replanning over the whole mission
+          const r = run(),
+            t = u * r.mission_time;
+          scene(W, H, t);
+          drawPoints(1);
+          drawTrails(r, t, 1.8);
+          drawFasterPlans(t);
+          drawStarts();
+          r.uav.forEach((v, k) => drone(at(v.traj, t), UAVC[k]));
+          label(`t = ${t.toFixed(1)} s · replanning every 0.4 s`, 14, H - 10);
+          return;
+        }
+        scene(W, H);
+        const eu = run("euclidean");
+        eu.uav.forEach((v) => {
+          line3(v.path, "rgba(232,237,242,.5)", 1.2, [4, 4]);
+          v.unsafe.forEach((p) => dot3(p, C.warn, 2, null));
+        });
+        drawPoints(1);
+        run().uav.forEach((v, r) => line3(head(v.path, pathLen(v.path) * Math.min(1, u * 1.3)), UAVC[r], 2.4));
+        drawStarts();
+      }
+      // position and heading of a drone at time t (trajectory sampled every 0.4 s)
+      function at(traj, t) {
+        const k = Math.min(traj.length - 1, t / 0.4),
+          i = Math.floor(k),
+          f = k - i,
+          a = traj[i],
+          b = traj[Math.min(traj.length - 1, i + 1)];
+        return [0, 1, 2].map((d) => a[d] + (b[d] - a[d]) * f).concat(a[3]);
+      }
+      // when each viewpoint is passed: the closest trajectory sample, if the evaluator counted it
+      const passCache = {};
+      function passTimes() {
+        const key = prob + plan;
+        if (passCache[key]) return passCache[key];
+        const out = [];
+        run().uav.forEach((u) =>
+          u.vps.forEach((v) => {
+            if (!v[5]) return;
+            let best = 0,
+              bd = 1e9;
+            u.traj.forEach((p, k) => {
+              const d = Math.hypot(p[0] - v[0], p[1] - v[1], p[2] - v[2]);
+              if (d < bd) {
+                bd = d;
+                best = k;
+              }
+            });
+            out.push([v[4], best * 0.4]);
+          })
+        );
+        return (passCache[key] = out);
+      }
+      function drone(p, col) {
+        const [x, y] = proj(p[0], p[1], p[2]);
+        // camera heading: a short wedge on the horizontal plane
+        const L = 3.2,
+          a = p[3];
+        const [fx, fy] = proj(p[0] + L * Math.cos(a - 0.35), p[1] + L * Math.sin(a - 0.35), p[2]),
+          [gx, gy] = proj(p[0] + L * Math.cos(a + 0.35), p[1] + L * Math.sin(a + 0.35), p[2]);
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.lineTo(fx, fy);
+        ctx.lineTo(gx, gy);
+        ctx.closePath();
+        ctx.fillStyle = "rgba(255,255,255,.22)";
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(x, y, 6, 0, 2 * Math.PI);
+        ctx.fillStyle = col;
+        ctx.fill();
+        ctx.strokeStyle = "#fff";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
+      function drawFly(W, H, dt, now) {
+        const r = run();
+        if (playing && !dragging) flyT = Math.min(r.mission_time, flyT + dt * SPEED);
+        if (flyT >= r.mission_time && doneAt === null) doneAt = now;
+        if (doneAt !== null && playing && now - doneAt > 2500) return go(S_CMP);
+        const fast = plan === "faster";
+        scene(W, H, fast ? flyT : null);
+        const lit = new Set(
+          passTimes()
+            .filter((p) => p[1] <= flyT)
+            .map((p) => p[0])
+        );
+        drawPoints(1, lit);
+        if (!fast) r.uav.forEach((u, k) => line3(u.path, UAVC[k], 1, [3, 4], 0.35));
+        drawTrails(r, flyT);
+        if (fast && flyT < r.mission_time) drawFasterPlans(flyT);
+        drawStarts();
+        r.uav.forEach((u, k) => drone(at(u.traj, flyT), UAVC[k]));
+        label(`t = ${flyT.toFixed(1)} s · ${lit.size} / ${P().ips.length} inspected`, 14, H - 10, flyT >= r.mission_time ? C.lit : "#d3d8de");
+      }
+
+      // ---------- comparison: two charts, one measure each
+      let bars = [];
+      function chart(x, y, w, h, title, value, range, unit, dec) {
+        const groups = PROBS,
+          gw = w / groups.length,
+          bw = Math.min(18, (gw - 22) / PL.length - 2);
+        const vals = groups.flatMap((p) => PL.map((m) => range(m, p)[1]));
+        let vmax = Math.max(...vals) * 1.12,
+          vmin = Math.min(0, ...groups.flatMap((p) => PL.map((m) => range(m, p)[0])));
+        const step_ = [1, 2, 5, 10, 20, 50].find((s) => (vmax - vmin) / s <= 6) || 100;
+        vmax = Math.ceil(vmax / step_) * step_;
+        vmin = Math.floor(vmin / step_) * step_;
+        const top = y + 24,
+          bot = y + h - 22,
+          Y = (v) => bot - ((v - vmin) / (vmax - vmin)) * (bot - top);
+        label(title, x, y + 10, "#e8edf2", "left", `600 12px ${MONO}`);
+        for (let v = vmin; v <= vmax + 1e-9; v += step_) {
+          ctx.strokeStyle = v === 0 ? "rgba(255,255,255,.35)" : "rgba(255,255,255,.08)";
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(x + 34, Y(v));
+          ctx.lineTo(x + w, Y(v));
+          ctx.stroke();
+          label(`${v}${unit}`, x + 30, Y(v) + 4, "#8a929c", "right", `500 10px ${MONO}`);
+        }
+        groups.forEach((p, gi) => {
+          const gx = x + 34 + gi * ((w - 34) / groups.length),
+            gww = (w - 34) / groups.length,
+            x0 = gx + (gww - PL.length * (bw + 2)) / 2;
+          label(PROBNAME[p], gx + gww / 2, bot + 15, prob === p ? "#e8edf2" : "#8a929c", "center", `${prob === p ? 600 : 500} 10.5px ${MONO}`);
+          PL.forEach((m, k) => {
+            const v = value(m, p),
+              [lo, hi] = range(m, p),
+              bx = x0 + k * (bw + 2),
+              y0 = Y(Math.max(0, Math.min(v, 0))),
+              y1 = Y(Math.max(v, 0)),
+              hh = Math.max(1.5, y0 - y1);
+            ctx.globalAlpha = m === plan || step !== S_CMP ? 1 : 0.55;
+            ctx.fillStyle = PCOL[m];
+            ctx.beginPath();
+            ctx.roundRect(bx, y0 - hh, bw, hh, [4, 4, 0, 0]);
+            ctx.fill();
+            ctx.globalAlpha = 1;
+            if (stat(m, p).n > 1) {
+              ctx.strokeStyle = "#e8edf2";
+              ctx.lineWidth = 1.2;
+              ctx.beginPath();
+              ctx.moveTo(bx + bw / 2, Y(lo));
+              ctx.lineTo(bx + bw / 2, Y(hi));
+              ctx.moveTo(bx + bw / 2 - 3, Y(lo));
+              ctx.lineTo(bx + bw / 2 + 3, Y(lo));
+              ctx.moveTo(bx + bw / 2 - 3, Y(hi));
+              ctx.lineTo(bx + bw / 2 + 3, Y(hi));
+              ctx.stroke();
+            }
+            if (m === plan && p === prob)
+              label(
+                unit === "%" && Math.abs(v) < 0.05 ? "fastest" : `${v.toFixed(dec)}${unit}`,
+                bx + bw / 2,
+                Math.min(Y(hi), y0 - hh) - 6,
+                "#e8edf2",
+                "center",
+                `600 10.5px ${MONO}`
+              );
+            bars.push({ x: bx - 1, y: top, w: bw + 2, h: bot - top, m, p, title });
+          });
+        });
+      }
+      function bestMean(p) {
+        return Math.min(...PL.map((m) => stat(m, p).mission_time[1]));
+      }
+      function drawCompare(W, H) {
+        bars = [];
+        const top = 40,
+          side = W >= 560,
+          cw = side ? (W - 48) / 2 : W - 28,
+          ch = side ? H - top - 16 : (H - top - 24) / 2;
+        const pct = (m, p, k) => (stat(m, p).mission_time[k] / bestMean(p) - 1) * 100;
+        chart(
+          14,
+          top,
+          cw,
+          ch,
+          "Mission time vs. fastest",
+          (m, p) => pct(m, p, 1),
+          (m, p) => [pct(m, p, 0), pct(m, p, 2)],
+          "%",
+          1
+        );
+        chart(
+          side ? 34 + cw : 14,
+          side ? top : top + ch + 18,
+          cw,
+          ch,
+          "Computation time",
+          (m, p) => stat(m, p).planning_time[1],
+          (m, p) => [stat(m, p).planning_time[0], stat(m, p).planning_time[2]],
+          " s",
+          0
+        );
+      }
+      function hover(e) {
+        const r = cv.getBoundingClientRect(),
+          x = e.clientX - r.left,
+          y = e.clientY - r.top,
+          b = bars.find((b) => x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h);
+        if (!b) return (tip.hidden = true);
+        const s = stat(b.m, b.p),
+          n = DATA.problems[b.p].ips.length,
+          rng = (k, d) => (s.n > 1 ? ` (${s[k][0].toFixed(d)}–${s[k][2].toFixed(d)})` : "");
+        tip.innerHTML = `<b>${PNAME[b.m]}</b> · ${PROBNAME[b.p]} map${s.n > 1 ? ` · ${s.n} runs` : ""}<br>mission ${s.mission_time[1].toFixed(1)} s${rng("mission_time", 1)}<br>points ${s.score[1] % 1 ? s.score[1].toFixed(1) : s.score[1]} / ${n}<br>compute ${s.planning_time[1].toFixed(1)} s${rng("planning_time", 1)}`;
+        tip.hidden = false;
+        tip.style.left = Math.min(r.width - tip.offsetWidth - 6, x + 12) + "px";
+        tip.style.top = Math.max(6, y - tip.offsetHeight - 8) + "px";
+      }
+
+      let lastNow = performance.now();
+      function tick(now) {
+        const [W, H] = fit(),
+          f = FLOW[step],
+          dt = playing ? Math.min(0.05, (now - lastNow) / 1000) : 0;
+        lastNow = now;
+        let el_ = playing ? now - t0 : pausedAt;
+        if (playing && f.d && step !== S_PLAN && el_ > f.d && !dragging) {
+          go(step + 1);
+          el_ = 0;
+        }
+        if (playing && !dragging && !reduce && step !== S_CMP) az += dt * 0.07;
+        let u = 1;
+        const dur = step === S_PLAN && plan === "faster" ? 16000 : f.d;
+        if (playing && step === S_PLAN && el_ > dur && !dragging) {
+          go(step + 1);
+          el_ = 0;
+        }
+        if (!reduce && dur) u = Math.min(el_ / dur, 1);
+        if (step === S_FLY) u = flyT / run().mission_time;
+        nodes.forEach((nd, i) => nd.querySelector(".bar").style.setProperty("--p", i < step ? "100%" : i === step ? `${u * 100}%` : "0%"));
+        ctx.fillStyle = "#0b0d10";
+        ctx.fillRect(0, 0, W, H);
+        if (step === 0) drawMission(W, H);
+        else if (step === S_SPLIT) drawSplit(W, H, u);
+        else if (step === S_PLAN) drawPlan(W, H, u);
+        else if (step === S_FLY) drawFly(W, H, reduce ? 0 : dt, now);
+        else drawCompare(W, H);
+        requestAnimationFrame(tick);
+      }
+      go(0);
+      requestAnimationFrame(tick);
+    </script>
+  </body>
+</html>
