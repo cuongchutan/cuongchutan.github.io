@@ -2,7 +2,7 @@
 layout: page
 title: Autonomous Guitar-Filming Drone
 description: Work in progress — a drone that follows and films me playing guitar outdoors
-importance: 1
+importance: 2
 category: Personal
 ---
 

@@ -33,6 +33,11 @@ nav_order: 3
     <p class="ach-title">{% if net.url %}<a href="{{ net.url }}" target="_blank" rel="noopener">{{ net.title }}</a>{% else %}{{ net.title }}{% endif %}</p>
     <div class="ach-issuer">{{ net.organization }}</div>
     {% if net.note %}<p class="ach-note">{{ net.note }}</p>{% endif %}
+    {% if net.file %}
+      <div class="cert-media">
+        {% include figure.liquid loading="lazy" path=net.file class="rounded z-depth-1" alt=net.title zoomable=true %}
+      </div>
+    {% endif %}
   </div>
 </div>
 {% endfor %}
