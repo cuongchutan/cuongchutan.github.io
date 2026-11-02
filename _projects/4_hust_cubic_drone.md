@@ -2,6 +2,7 @@
 layout: page
 title: Cubic Drone Simulation
 description: Bachelor's Thesis · 04/2021 – 04/2022
+teaser: "A quadcopter whose arms fold into a cube, simulated from its folding linkage to planning in unknown places."
 img: assets/img/projects/hust-logo.jpg
 importance: 4
 category: Work

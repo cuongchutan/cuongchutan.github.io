@@ -15,3 +15,5 @@ assets/mdp/*.js
 assets/hust/*.js
 # generated terrain and trajectory data for the multi-robot inspection animation
 assets/mrs/*.js
+# generated flight and audio data for the guitar-drone animation
+assets/guitar/*.js

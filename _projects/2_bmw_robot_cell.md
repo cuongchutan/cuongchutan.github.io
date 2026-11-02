@@ -2,6 +2,7 @@
 layout: page
 title: Pick-and-Place Dual-robot & Cobot Systems
 description: Robotics Software Intern · 03/2025 – 08/2025
+teaser: "Two industrial robots that emptied full bins of parts on their own, and a cobot that works alongside people."
 img: assets/img/projects/bmw-2025.jpg
 importance: 2
 category: Work

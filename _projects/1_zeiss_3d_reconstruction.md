@@ -2,6 +2,7 @@
 layout: page
 title: Model-free 3D Object Reconstruction
 description: Master's Thesis Student · 01/2026 – 10/2026
+teaser: "3D models of unknown, textureless parts from RGB video alone: the most accurate method tested, at 2.8 mm."
 img: assets/img/projects/zeiss-2026.jpg
 importance: 1
 category: Work

@@ -13,7 +13,9 @@ profile:
     <div class="contact-line"><i class="fa-solid fa-language fa-fw"></i><span>Vietnamese (native)<br>English (C1)<br>German (B1)</span></div>
     <div class="contact-line"><i class="fa-solid fa-envelope fa-fw"></i><span><a href="mailto:cuongchutan@gmail.com">cuongchutan@gmail.com</a></span></div>
 
-selected_papers: false # replaced by the Publication section below
+selected_papers: false
+# project trailers in the Projects section below, in this order (file names in _projects/)
+featured_projects: [1_zeiss_3d_reconstruction, 2_bmw_robot_cell, 6_guitar_drone, 7_mrs_inspection_planners]
 social: true # includes social icons at the bottom of the page
 
 announcements:
@@ -42,6 +44,16 @@ latest_posts:
     .post article > .profile { margin-top: -6.4rem; }
   }
   .edu-note { margin-top: 0.5rem; font-size: 0.9rem; color: var(--global-text-color-light); }
+  .trailers { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; margin-bottom: 0.75rem; }
+  @media (max-width: 576px) { .trailers { grid-template-columns: 1fr; } }
+  .trailer { display: flex; flex-direction: column; border: 1px solid var(--global-divider-color); border-radius: 0.5rem; overflow: hidden; color: inherit !important; text-decoration: none !important; transition: transform 0.15s, box-shadow 0.15s; }
+  .trailer:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18); }
+  .trailer img { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; display: block; }
+  .trailer-body { padding: 0.7rem 0.9rem 0.85rem; }
+  .trailer-title { font-weight: 600; font-size: 1.02rem; line-height: 1.3; }
+  .trailer-meta { font-size: 0.82rem; color: var(--global-text-color-light); margin: 0.15rem 0 0.35rem; }
+  .trailer-text { font-size: 0.92rem; line-height: 1.45; margin: 0; }
+  .trailers-all { font-weight: 500; }
 </style>
 
 **Open to full-time, long-term positions in robotics software, 3D perception and robot manipulation — available to start as soon as possible.**
@@ -102,8 +114,22 @@ Before that, I worked on human motion prediction for safe human-robot interactio
 
 </div>
 
-## Publication
+## Projects
 
-<div class="publications">
-{% bibliography --group_by none %}
+<div class="trailers">
+{% for name in page.featured_projects %}
+{% assign proj = site.projects | where_exp: "p", "p.path contains name" | first %}
+{% if proj %}
+<a class="trailer" href="{{ '/projects/' | relative_url }}">
+  <img src="{{ proj.img | relative_url }}" alt="" loading="lazy">
+  <div class="trailer-body">
+    <div class="trailer-title">{{ proj.title }}</div>
+    <div class="trailer-meta">{{ proj.description }}</div>
+    <p class="trailer-text">{{ proj.teaser }}</p>
+  </div>
+</a>
+{% endif %}
+{% endfor %}
 </div>
+
+<a class="trailers-all" href="{{ '/projects/' | relative_url }}">See all {{ site.projects.size }} projects <i class="fa-solid fa-arrow-right"></i></a>

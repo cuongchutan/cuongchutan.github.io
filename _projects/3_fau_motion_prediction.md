@@ -2,6 +2,7 @@
 layout: page
 title: Long-term Human Motion Prediction
 description: University Research Assistant · 11/2024 – 04/2025
+teaser: "Predicting where people will walk next, so robots can move safely around them: up to 19% more accurate."
 img: assets/img/projects/fau-logo.jpg
 importance: 3
 category: Work

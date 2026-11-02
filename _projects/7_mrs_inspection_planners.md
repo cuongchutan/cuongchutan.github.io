@@ -2,6 +2,7 @@
 layout: page
 title: Multi-Drone Planner Comparison
 description: Personal Project · 09/2025 – 10/2025
+teaser: "Which planner flies two drones through a mine inspection fastest, even when they have no map?"
 img: assets/img/projects/mrs-2025.jpg
 importance: 1
 category: Personal
@@ -45,4 +46,4 @@ Pick a map and a method: see how the inspection points are shared, where the fou
   });
 </script>
 
-**Stack:** Python · ROS1 · MRS UAV System · Apptainer · TOPPRA · LKH
+**Stack:** Python · ROS1 · MRS UAV System

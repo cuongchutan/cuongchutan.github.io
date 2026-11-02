@@ -1,24 +1,45 @@
 ---
 layout: page
 title: Autonomous Guitar-Filming Drone
-description: Work in progress — a drone that follows and films me playing guitar outdoors
+description: Personal Project · 06/2024 – present
+teaser: "A drone that films me playing guitar on my trips, with camera moves timed to the music."
+img: assets/img/projects/guitar-drone.jpg
 importance: 2
 category: Personal
 ---
 
-**Status: work in progress.** Code, videos and results will be added here.
+**Status:** In progress. The drone works in simulation; next, I am building my own physical drone.
 
-**Idea.** I record guitar covers for my [YouTube channel](https://www.youtube.com/@ctc2506), and I want to film them outdoors without a camera operator. This project is an autonomous drone system that finds me, keeps me framed and records the performance on its own.
+**Motivation.** I love playing guitar on my trips, but rarely have someone with the skill and the time to travel with me and film it. While I play, both hands and my eyes stay on the guitar, so I cannot fly a drone myself. I want a drone that films me on its own, timed to the rhythm or cued by other parts of my body, and that moves artistically around me and the guitar instead of hovering in one place.
 
-{% comment %}
-Suggested sections once there is something to show:
+**What I did.**
 
-- Demo video: {% include video.liquid path="https://www.youtube.com/embed/VIDEO_ID" class="img-fluid rounded z-depth-1" %}
-- System overview (hardware, perception, control)
-- What worked, what did not, next steps
-- Code: add `github: https://github.com/cuongchutan/REPO` to the front matter to show a GitHub icon on the card
-{% endcomment %}
+- Built a MuJoCo simulation in which a drone films a humanoid playing a guitar cover of "10,000 Hours".
+- The drone listens to the song, finds its beats, bars and phrases, and plans one camera move per phrase.
+- A flight controller flies the moves in gusty wind, while a gimbal keeps the face or the guitar in frame.
+
+**Next.** Build the drone, track the beat live from a microphone, detect me with a pose tracker, and add hands-free cues such as head or foot gestures to steer the shots.
+
+## How the drone films the song
+
+Turn the sound on to hear the song: every step plays in time with the music.
+
+<iframe scrolling="no" class="guitar-frame" src="{{ '/assets/guitar/guitar-drone.html' | relative_url }}" title="Animation of a drone filming a guitarist, with camera moves timed to the song" loading="lazy" allow="autoplay"></iframe>
+
+<p class="small text-muted">Simulated in MuJoCo with a Unitree G1 humanoid and a Skydio X2 drone; the last step is the video the drone camera recorded.</p>
 
 <style>
   .post article p, .post article li { text-align: justify; hyphens: auto; }
+  .guitar-frame { display: block; width: 100%; height: 1200px; border: 0; margin: 0.5rem 0 1rem; background: transparent; }
 </style>
+
+<script>
+  window.addEventListener("message", function (e) {
+    if (!e.data || e.data.thesisFrame !== "guitar") return;
+    document.querySelectorAll(".guitar-frame").forEach(function (f) {
+      f.style.height = e.data.h + "px";
+    });
+  });
+</script>
+
+**Stack:** Python · MuJoCo physics simulator · librosa audio analysis

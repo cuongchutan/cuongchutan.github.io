@@ -2,6 +2,7 @@
 layout: page
 title: Mobile Robot SLAM
 description: University Research Assistant · 01/2020 – 04/2021
+teaser: "A service robot that maps a room with its LiDAR, drives itself and takes voice commands: 1st prize at HUST."
 img: assets/img/projects/nckh-hust-2020.jpg
 importance: 5
 category: Work
