@@ -141,13 +141,30 @@
         width: 100%;
         height: 100%;
       }
+      .view.film {
+        aspect-ratio: 16 / 9;
+      }
+      .hint {
+        all: unset;
+        cursor: pointer;
+        position: absolute;
+        left: 50%;
+        bottom: 14px;
+        transform: translateX(-50%);
+        padding: 7px 14px;
+        border-radius: 999px;
+        font: 600 13px/1 var(--font);
+        color: #0b0d10;
+        background: #ffd166;
+        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+      }
       .view video {
         position: absolute;
         left: 0;
         right: 0;
         top: 0;
         width: 100%;
-        height: calc(100% - 70px);
+        height: 100%;
         object-fit: contain;
         background: #000;
       }
@@ -301,13 +318,14 @@
       <div>
         <div class="view">
           <canvas id="cv" aria-label="Animation of the current step"></canvas>
-          <video id="film" src="film.mp4" poster="poster.jpg" playsinline muted preload="none" controls hidden></video>
-          <audio id="song" src="song.mp3" preload="none"></audio>
+          <video id="film" src="demo.mp4" poster="demo-poster.jpg" playsinline muted preload="none" controls hidden></video>
+          <audio id="song" src="song.mp3" preload="auto"></audio>
           <div class="hud"><span id="hudL"></span><span id="hudR"></span></div>
+          <button class="hint" id="hint" hidden>♪ Click to play the song</button>
         </div>
         <div class="chips" id="chips"></div>
         <div class="controls">
-          <button class="btn" id="sound" aria-pressed="false">♪ Sound on</button>
+          <button class="btn" id="sound" aria-pressed="true">♪ Sound off</button>
           <button class="btn" id="play">Pause</button>
           <button class="btn" id="prev">Previous</button>
           <button class="btn" id="next">Next</button>
@@ -397,11 +415,28 @@
           d: 32000,
           speed: 1,
           node: "Film",
-          t: "What the drone records",
-          hud: "DRONE CAMERA · rendered in MuJoCo",
-          text: "The result is a single continuous take: an establishing orbit, a push-in on the chord changes, a low hero orbit, a spiral that climbs behind the strumming arm, an over-the-shoulder slide and a pull-back as the song ends. Nobody touches a controller after take-off.",
+          t: "Everything at once",
+          hud: "DEMO · rendered in MuJoCo",
+          text: "The whole flight in one view: the drone camera's single continuous take on the left, a chase camera and the top view on the right, and the shot plan, beats and loudness along the bottom. Six moves follow each other without a stop: an establishing orbit, a push-in on the chord changes, a low hero orbit, a climbing spiral, an over-the-shoulder slide and a pull-back as the song ends.",
         },
       ];
+      // the 32 s song plays once across Listen, Perform, Direct and Fly, each part one or two musical phrases long
+      {
+        const at = (k) => (k < A.phrases.length ? A.phrases[k][0] : DUR);
+        [
+          [0, 1],
+          [1, 2],
+          [2, 4],
+          [4, 6],
+        ].forEach(([a, b], i) => {
+          FLOW[i].t0 = at(a);
+          FLOW[i].t1 = at(b);
+          FLOW[i].d = (at(b) - at(a)) * 1000;
+          FLOW[i].speed = 1;
+        });
+        FLOW[0].hud = `LISTEN · ${A.tempo.toFixed(0)} BPM`;
+        FLOW[1].hud = "PERFORMER · front view";
+      }
       const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
       // ---------- theme: follow the embedding page (al-folio sets data-theme on <html>), else the OS
@@ -612,19 +647,21 @@
           nd.setAttribute("aria-current", i === step ? "step" : "false");
         });
         video.hidden = step !== 4;
-        video.muted = !sound;
+        document.querySelector(".view").classList.toggle("film", step === 4);
         if (step === 4) {
           video.currentTime = 0;
-          if (playing) video.play().catch(() => {});
+          if (playing) playVideo();
         } else video.pause();
         postHeight();
       }
       let lastShot = -1;
-      function go(i) {
+      // seek: a jump chosen by the reader moves the song to that part; the automatic advance keeps it running
+      function go(i, seek = true) {
         step = (i + FLOW.length) % FLOW.length;
         t0 = performance.now();
         pausedAt = 0;
         lastShot = -1;
+        if (seek && step < 4 && songOn()) song.currentTime = FLOW[step].t0;
         renderPanel();
       }
       document.getElementById("prev").onclick = () => go(step - 1);
@@ -635,32 +672,107 @@
         playBtn.textContent = playing ? "Pause" : "Play";
         if (playing) t0 = performance.now() - pausedAt;
         else pausedAt = performance.now() - t0;
-        if (step === 4) playing ? video.play().catch(() => {}) : video.pause();
+        if (step === 4) playing ? playVideo() : video.pause();
       };
       playBtn.textContent = playing ? "Pause" : "Play";
       video.addEventListener("ended", () => {
         if (playing) go(0);
       });
-      // sound: off until the reader asks (browsers block audio before a click), then follows the animation clock
+      // ---------- sound: on by default. Browsers allow sound only after a click on the page, so if the first
+      // attempt is blocked, a hint appears and the first click here or on the project page starts it.
       const song = document.getElementById("song"),
-        soundBtn = document.getElementById("sound");
-      let sound = false;
-      soundBtn.onclick = () => {
-        sound = !sound;
+        soundBtn = document.getElementById("sound"),
+        hint = document.getElementById("hint");
+      let sound = true,
+        blocked = false,
+        trying = false;
+      const songOn = () => !song.paused && song.readyState >= 2 && !trying; // while starting, the animation keeps its own clock
+      function setSound(on) {
+        sound = on;
         soundBtn.textContent = sound ? "♪ Sound off" : "♪ Sound on";
         soundBtn.setAttribute("aria-pressed", String(sound));
+        if (!sound) {
+          song.pause();
+          video.muted = true;
+          hint.hidden = true;
+        } else if (step === 4 && playing) playVideo();
+      }
+      soundBtn.onclick = () => setSound(!sound);
+      function playVideo() {
         video.muted = !sound;
-      };
-      function syncSound(T) {
-        if (!sound || step === 4 || !playing) {
+        video.play().catch(() => {
+          // sound not allowed yet: play the demo muted until the first click
+          blocked = sound;
+          hint.hidden = !sound;
+          video.muted = true;
+          video.play().catch(() => {});
+        });
+      }
+      // start the song where the animation is (applied once playback has begun, when seeking is reliable)
+      function startSong() {
+        trying = true;
+        const target = curT,
+          asked = performance.now();
+        song
+          .play()
+          .then(() => {
+            song.currentTime = Math.min(DUR, target + (performance.now() - asked) / 1000);
+            hint.hidden = true;
+          })
+          .catch(() => {
+            blocked = true;
+            hint.hidden = !sound;
+          })
+          .finally(() => (trying = false));
+      }
+      // the song is the clock of the first four parts
+      function syncSound() {
+        if (!sound || step === 4 || !playing || !visible) {
           if (!song.paused) song.pause();
           return;
         }
-        if (song.paused) {
-          song.currentTime = T;
-          song.play().catch(() => {});
-        } else if (Math.abs(song.currentTime - T) > 0.25) song.currentTime = T;
+        if (song.paused && !trying && !blocked) startSong();
       }
+      function unblock() {
+        if (!blocked) return;
+        blocked = false;
+        hint.hidden = true;
+        if (!sound) return;
+        if (step === 4) {
+          video.muted = false;
+          video.play().catch(() => {});
+        } else if (playing && visible) startSong();
+      }
+      hint.onclick = unblock;
+      for (const doc of [
+        document,
+        (() => {
+          try {
+            return parent.document;
+          } catch (e) {
+            return null;
+          }
+        })(),
+      ])
+        if (doc) ["pointerdown", "keydown"].forEach((ev) => doc.addEventListener(ev, unblock, true));
+      // play only while the animation is on screen, so the song never plays unseen
+      let visible = false,
+        wasPlaying = playing;
+      playing = false; // starts when the animation scrolls into view
+      playBtn.textContent = "Play";
+      new IntersectionObserver(
+        ([e]) => {
+          visible = e.isIntersecting;
+          if (!visible && playing) {
+            wasPlaying = true;
+            playBtn.click();
+          } else if (visible && !playing && wasPlaying) {
+            wasPlaying = false;
+            playBtn.click();
+          }
+        },
+        { threshold: 0.35 }
+      ).observe(document.querySelector(".view"));
 
       // ---------- drawing helpers
       const cv = document.getElementById("cv"),
@@ -1195,8 +1307,9 @@
         );
       }
 
-      // ---------- step 5: film (the video plays above, the shot timeline below)
+      // ---------- step 5: the demo video fills the view
       function drawFilm(W, H) {
+        return;
         const T = video.currentTime || 0,
           y = H - 62,
           l = 16,
@@ -1234,13 +1347,16 @@
       function tick(now) {
         const [W, Hh] = fit(),
           f = FLOW[step];
-        let el = playing ? now - t0 : pausedAt;
-        if (step !== 4 && playing && el > f.d) {
-          go(step + 1);
-          el = 0;
+        const el = playing ? now - t0 : pausedAt;
+        let T = reduce ? f.t1 || DUR : songOn() && step < 4 ? song.currentTime : (f.t0 || 0) + el / 1000;
+        if (step < 4 && playing && !reduce && T >= f.t1 - 0.01) {
+          go(step + 1, false); // the song keeps playing into the next part
+          requestAnimationFrame(tick);
+          return;
         }
-        const u = step === 4 ? (video.currentTime || 0) / DUR : reduce ? 1 : Math.min(el / f.d, 1);
-        const T = Math.min(DUR, (f.t0 || 0) + (reduce ? (f.speed * f.d) / 1000 : (el / 1000) * f.speed));
+        T = Math.min(DUR, Math.max(f.t0 || 0, T));
+        curT = T;
+        const u = step === 4 ? (video.currentTime || 0) / DUR : (T - f.t0) / (f.t1 - f.t0);
         nodes.forEach((nd, i) => nd.querySelector(".bar").style.setProperty("--p", i < step ? "100%" : i === step ? `${u * 100}%` : "0%"));
         ctx.fillStyle = "#0b0d10";
         ctx.fillRect(0, 0, W, Hh);
@@ -1249,11 +1365,46 @@
         else if (step === 2) drawDirect(W, Hh, T);
         else if (step === 3) drawFly(W, Hh, T);
         else drawFilm(W, Hh);
-        syncSound(T);
+        syncSound();
         requestAnimationFrame(tick);
       }
+      let curT = 0;
       renderPanel();
       requestAnimationFrame(tick);
+    </script>
+    <script>
+      // keep the last three words of each text together, so no line ends up with only one or two words
+      (function () {
+        function glue(el) {
+          if (el.textContent.trim().split(/\s+/).length < 5) return;
+          const nodes = [],
+            w = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+          while (w.nextNode()) nodes.push(w.currentNode);
+          let gaps = 0,
+            word = false;
+          for (let i = nodes.length - 1; i >= 0 && gaps < 2; i--) {
+            const t = nodes[i].nodeValue;
+            let out = t;
+            for (let k = t.length - 1; k >= 0 && gaps < 2; k--) {
+              if (/\s/.test(t[k])) {
+                if (!word) continue;
+                if (t[k] !== " ") out = out.slice(0, k) + " " + out.slice(k + 1);
+                gaps++;
+                word = false;
+              } else word = true;
+            }
+            if (out !== t) nodes[i].nodeValue = out;
+          }
+        }
+        const SEL = "p, li, dd, figcaption";
+        const run = () => {
+          obs.disconnect();
+          document.querySelectorAll(SEL).forEach(glue);
+          obs.observe(document.body, { subtree: true, childList: true, characterData: true });
+        };
+        const obs = new MutationObserver(run);
+        run();
+      })();
     </script>
   </body>
 </html>

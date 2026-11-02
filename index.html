@@ -70,6 +70,22 @@
   p, li, figcaption, .card-text, dd { text-wrap: pretty; }
   .role-time { display: block; }
 </style> <script>(function () {
+  // keep the last three words of a paragraph together, so no line ends up with only one or two words
+  function glue(el) {
+    if (el.textContent.trim().split(/\s+/).length < 5) return;
+    var nodes = [], w = document.createTreeWalker(el, NodeFilter.SHOW_TEXT), gaps = 0, word = false;
+    while (w.nextNode()) nodes.push(w.currentNode);
+    for (var i = nodes.length - 1; i >= 0 && gaps < 2; i--) {
+      var t = nodes[i].nodeValue, out = t;
+      for (var k = t.length - 1; k >= 0 && gaps < 2; k--) {
+        if (/\s/.test(t[k])) { if (!word) continue; if (t[k] !== "\u00a0") out = out.slice(0, k) + "\u00a0" + out.slice(k + 1); gaps++; word = false; }
+        else word = true;
+      }
+      if (out !== t) nodes[i].nodeValue = out;
+    }
+  }
+  document.querySelectorAll("article p, article li, figcaption, .card-text, .trailer-text").forEach(glue);
+})();</script> <script>(function () {
   document.querySelectorAll(".publications .bibliography li").forEach(function (li) {
     var t = li.querySelector(".title"), links = li.querySelector(".links"); if (!t || !links) return;
     var a = Array.prototype.find.call(links.querySelectorAll("a"), function (x) { return /^(DOI|HTML)$/.test(x.textContent.trim()); });

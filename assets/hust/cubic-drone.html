@@ -1152,5 +1152,39 @@
       renderPanel();
       requestAnimationFrame(tick);
     </script>
+    <script>
+      // keep the last three words of each text together, so no line ends up with only one or two words
+      (function () {
+        function glue(el) {
+          if (el.textContent.trim().split(/\s+/).length < 5) return;
+          const nodes = [],
+            w = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+          while (w.nextNode()) nodes.push(w.currentNode);
+          let gaps = 0,
+            word = false;
+          for (let i = nodes.length - 1; i >= 0 && gaps < 2; i--) {
+            const t = nodes[i].nodeValue;
+            let out = t;
+            for (let k = t.length - 1; k >= 0 && gaps < 2; k--) {
+              if (/\s/.test(t[k])) {
+                if (!word) continue;
+                if (t[k] !== " ") out = out.slice(0, k) + " " + out.slice(k + 1);
+                gaps++;
+                word = false;
+              } else word = true;
+            }
+            if (out !== t) nodes[i].nodeValue = out;
+          }
+        }
+        const SEL = "p, li, dd, figcaption";
+        const run = () => {
+          obs.disconnect();
+          document.querySelectorAll(SEL).forEach(glue);
+          obs.observe(document.body, { subtree: true, childList: true, characterData: true });
+        };
+        const obs = new MutationObserver(run);
+        run();
+      })();
+    </script>
   </body>
 </html>
