@@ -42,6 +42,8 @@
   .publications .title a i { font-size: 0.7em; color: var(--global-theme-color); vertical-align: 0.1em; }
   .publications .title a:hover { color: var(--global-theme-color); }
   .projects .card-img-top { aspect-ratio: 4 / 3; object-fit: cover; }
+  /* no last line with only one or two words */
+  p, li, figcaption, .card-text, dd { text-wrap: pretty; }
   .role-time { display: block; }
 </style> <script>(function () {
   document.querySelectorAll(".publications .bibliography li").forEach(function (li) {
@@ -139,7 +141,7 @@ ninja.data = [{
               window.location.href = "/projects/5_hust_slam/";
             },},{id: "projects-autonomous-guitar-filming-drone",
           title: 'Autonomous Guitar-Filming Drone',
-          description: "Work in progress — a drone that follows and films me playing guitar outdoors",
+          description: "Personal Project · 06/2024 – present",
           section: "Projects",handler: () => {
               window.location.href = "/projects/6_guitar_drone/";
             },},{id: "projects-multi-drone-planner-comparison",

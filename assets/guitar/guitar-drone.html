@@ -1,0 +1,1259 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Guitar Drone</title>
+    <style>
+      /* Same tokens as the thesis animations; the viewport stays a dark "screen" in both themes. */
+      :root {
+        --bg: transparent;
+        --panel: #ffffff;
+        --line: rgba(0, 0, 0, 0.12);
+        --fg: #111111;
+        --muted: #6b6b6b;
+        --accent: #b509ac;
+        --warn: #b8691a;
+        --screen: #0b0d10;
+        --font: "Roboto", "Segoe UI", Helvetica, Arial, sans-serif;
+        --mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+        color-scheme: light;
+      }
+      :root[data-theme="dark"] {
+        --panel: #212529;
+        --line: #424246;
+        --fg: #e8e8e8;
+        --muted: #9a9a9a;
+        --accent: #2698ba;
+        --warn: #f0a24a;
+        color-scheme: dark;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        overflow: hidden; /* the embedding page sizes the frame to fit, so no scroll bar */
+        background: var(--bg);
+      }
+      body {
+        color: var(--fg);
+        font: 15px/1.55 var(--font);
+      }
+      p,
+      li,
+      dd,
+      figcaption {
+        text-wrap: pretty; /* no last line with only one or two words */
+      }
+      [hidden] {
+        display: none !important;
+      }
+      .wrap {
+        display: grid;
+        gap: 16px;
+        padding: 4px 2px 8px;
+      }
+      .rail {
+        position: relative;
+        display: grid;
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+        gap: 6px;
+        padding-top: 12px;
+      }
+      .rail::before {
+        content: "";
+        position: absolute;
+        left: 10%;
+        right: 10%;
+        top: 19px;
+        height: 2px;
+        background: var(--line);
+      }
+      .node {
+        all: unset;
+        cursor: pointer;
+        position: relative;
+        display: grid;
+        justify-items: center;
+        gap: 5px;
+        text-align: center;
+        min-width: 0;
+      }
+      .node:focus-visible,
+      .btn:focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 2px;
+      }
+      .dot {
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        background: var(--panel);
+        border: 2px solid var(--line);
+        z-index: 1;
+      }
+      .node.done .dot {
+        border-color: var(--accent);
+        background: color-mix(in srgb, var(--accent) 35%, var(--panel));
+      }
+      .node.on .dot {
+        border-color: var(--accent);
+        background: var(--accent);
+      }
+      .node small {
+        font: 600 11px/1 var(--mono);
+        letter-spacing: 0.08em;
+        color: var(--muted);
+        text-transform: uppercase;
+      }
+      .node.on small {
+        color: var(--fg);
+      }
+      .bar {
+        display: block;
+        height: 3px;
+        width: 70%;
+        background: var(--line);
+        border-radius: 2px;
+        position: relative;
+        overflow: hidden;
+      }
+      .bar::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        width: var(--p, 0%);
+        background: var(--accent);
+      }
+      .view {
+        position: relative;
+        aspect-ratio: 16 / 10;
+        background: var(--screen);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        overflow: hidden;
+      }
+      .view canvas {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+      }
+      .view video {
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: 0;
+        width: 100%;
+        height: calc(100% - 70px);
+        object-fit: contain;
+        background: #000;
+      }
+      .hud {
+        position: absolute;
+        left: 10px;
+        top: 9px;
+        right: 10px;
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+        font: 500 11.5px/1.3 var(--mono);
+        color: #d3d8de;
+        pointer-events: none;
+      }
+      .hud span {
+        background: rgba(10, 12, 15, 0.72);
+        padding: 4px 8px;
+        border-radius: 6px;
+      }
+      .controls {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        margin-top: 10px;
+        flex-wrap: wrap;
+      }
+      .btn {
+        all: unset;
+        cursor: pointer;
+        font-size: 13px;
+        line-height: 1;
+        padding: 8px 12px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--panel);
+      }
+      .chips {
+        display: flex;
+        justify-content: center;
+        flex-wrap: wrap;
+        gap: 6px 8px;
+        margin-top: 10px;
+      }
+      .chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 12.5px;
+        padding: 4px 10px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        background: var(--panel);
+      }
+      .chip i {
+        width: 14px;
+        height: 4px;
+        border-radius: 2px;
+        box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.25);
+      }
+      .info {
+        display: grid;
+        gap: 12px;
+        min-width: 0;
+      }
+      .info .num {
+        font: 600 12px/1 var(--mono);
+        color: var(--accent);
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+      }
+      .info h3 {
+        font-size: 22px;
+        line-height: 1.2;
+        font-weight: 500;
+        margin: 0;
+      }
+      .info p {
+        margin: 0;
+        color: var(--muted);
+        text-align: justify;
+        hyphens: auto;
+      }
+      .tables {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px 24px;
+      }
+      .tables h4 {
+        margin: 0 0 4px;
+        font: 600 11px/1.4 var(--mono);
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+      dl {
+        margin: 0;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        border-top: 1px solid var(--line);
+      }
+      dl div {
+        display: contents;
+      }
+      dt,
+      dd {
+        padding: 8px 0;
+        border-bottom: 1px solid var(--line);
+      }
+      dt {
+        color: var(--muted);
+        font-size: 13.5px;
+        padding-right: 12px;
+      }
+      dd {
+        margin: 0;
+        font: 600 14px/1.4 var(--mono);
+        font-variant-numeric: tabular-nums;
+        text-align: right;
+      }
+      dl div.on dt,
+      dl div.on dd {
+        color: var(--accent);
+      }
+      .note {
+        font-size: 13px;
+        color: var(--muted);
+        border-left: 3px solid var(--warn);
+        padding-left: 10px;
+      }
+      @media (max-width: 560px) {
+        .view {
+          aspect-ratio: 1 / 1;
+        }
+        #hudR {
+          display: none;
+        }
+      }
+      @media (max-width: 760px) {
+        .tables {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <nav class="rail" id="rail" aria-label="Steps"></nav>
+
+      <div>
+        <div class="view">
+          <canvas id="cv" aria-label="Animation of the current step"></canvas>
+          <video id="film" src="film.mp4" poster="poster.jpg" playsinline muted preload="none" controls hidden></video>
+          <audio id="song" src="song.mp3" preload="none"></audio>
+          <div class="hud"><span id="hudL"></span><span id="hudR"></span></div>
+        </div>
+        <div class="chips" id="chips"></div>
+        <div class="controls">
+          <button class="btn" id="sound" aria-pressed="false">♪ Sound on</button>
+          <button class="btn" id="play">Pause</button>
+          <button class="btn" id="prev">Previous</button>
+          <button class="btn" id="next">Next</button>
+        </div>
+      </div>
+
+      <div class="info">
+        <div class="num" id="snum"></div>
+        <h3 id="stitle"></h3>
+        <p id="stext"></p>
+        <div class="tables">
+          <div>
+            <h4 id="h1"></h4>
+            <dl id="f1"></dl>
+          </div>
+          <div>
+            <h4 id="h2"></h4>
+            <dl id="f2"></dl>
+          </div>
+        </div>
+        <p class="note" id="snote"></p>
+      </div>
+    </div>
+
+    <script src="data.js"></script>
+    <script>
+      const FRAME = "guitar";
+      const D = window.GUITAR_DRONE; // written by make_motion_graphics.py from outputs/flight_log.json
+      const A = D.audio,
+        F = D.flight,
+        PL = D.plan,
+        S = D.summary,
+        L = D.limits;
+      const DUR = A.duration;
+      const COL = {
+        wave: "#5d6670",
+        beat: "#98a0ab",
+        bar: "#e8edf2",
+        energy: "#2698ba",
+        ref: "#ffd166",
+        drone: "#2698ba",
+        flown: "#69c48a",
+        keepout: "#ff5a5a",
+        body: "#c9ced6",
+        guitar: "#c8752e",
+        strum: "#ff6b8b",
+        fret: "#f0a24a",
+        face: "#e8edf2",
+        aim: "#ffffff",
+      };
+      const CHORDS = ["G", "D", "Em", "C"];
+      const FLOW = [
+        {
+          d: 16000,
+          speed: 1,
+          node: "Listen",
+          t: "The song sets the timing",
+          hud: `LISTEN · ${A.tempo.toFixed(0)} BPM · 0–16 s of the song`,
+          text: "My hands and eyes are busy with the guitar, so the drone takes its cues from the music instead. It finds the beat, groups beats into bars of four and phrases of eight, and measures how loud each moment is. Every phrase becomes one camera move, so the camera changes on the same boundaries an editor would cut on.",
+        },
+        {
+          d: 10000,
+          speed: 1,
+          t0: 6,
+          node: "Perform",
+          t: "A humanoid stands in for me",
+          hud: "PERFORMER · front view · 6–16 s of the song",
+          text: "In the simulation a Unitree G1 humanoid plays the guitar. Its right hand strums down on every beat and up in between, harder when the song gets louder; its left hand slides to a new chord shape on every bar line. Both hands are placed by inverse kinematics on every frame. The face, the guitar and both hands are the points a camera tracker would follow.",
+        },
+        {
+          d: 32000,
+          speed: 1,
+          node: "Direct",
+          t: "One camera move per phrase",
+          hud: "SHOT PLAN · top view",
+          text: "Each move is a few keyframes around me: the angle θ, the distance r and the height z, plus the lens angle. Each move starts where the last one ended, so the drone never stops, and a spline through all keyframes gives a smooth path. On every bar line the drone also pushes in by 10 cm, a small pulse that keeps the motion in time with the song. Louder phrases sweep further around me.",
+        },
+        {
+          d: 32000,
+          speed: 1,
+          node: "Fly",
+          t: "Flying the plan in gusty wind",
+          hud: "FLIGHT · top view",
+          text: "A geometric flight controller turns the planned path into thrust for the four rotors of a Skydio X2 model, with an integral term to hold the line in a gusting breeze. A levelled gimbal under the nose keeps the tracked point in the centre of the frame, with a short tracking delay and a slew-rate limit like a real one. The planner never comes closer than 1.5 m to my vertical axis or 1.2 m to any tracked body part.",
+        },
+        {
+          d: 32000,
+          speed: 1,
+          node: "Film",
+          t: "What the drone records",
+          hud: "DRONE CAMERA · rendered in MuJoCo",
+          text: "The result is a single continuous take: an establishing orbit, a push-in on the chord changes, a low hero orbit, a spiral that climbs behind the strumming arm, an over-the-shoulder slide and a pull-back as the song ends. Nobody touches a controller after take-off.",
+        },
+      ];
+      const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+      // ---------- theme: follow the embedding page (al-folio sets data-theme on <html>), else the OS
+      function applyTheme() {
+        let t = null;
+        try {
+          t = parent !== window && parent.document.documentElement.getAttribute("data-theme");
+        } catch (e) {}
+        if (!t) t = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+        document.documentElement.setAttribute("data-theme", t);
+      }
+      applyTheme();
+      try {
+        if (parent !== window)
+          new MutationObserver(applyTheme).observe(parent.document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+      } catch (e) {}
+      matchMedia("(prefers-color-scheme: dark)").addEventListener("change", applyTheme);
+
+      function postHeight() {
+        if (parent !== window)
+          parent.postMessage({ thesisFrame: FRAME, h: Math.ceil(document.querySelector(".wrap").getBoundingClientRect().height) + 4 }, "*");
+      }
+      new ResizeObserver(postHeight).observe(document.querySelector(".wrap"));
+
+      // ---------- data helpers
+      const lerp = (a, b, f) => a + (b - a) * f;
+      function sampleAt(ts, arr, t) {
+        // linear interpolation in a time series; arr items are numbers or arrays
+        const n = ts.length;
+        if (t <= ts[0]) return arr[0];
+        if (t >= ts[n - 1]) return arr[n - 1];
+        let lo = 0,
+          hi = n - 1;
+        while (hi - lo > 1) {
+          const m = (lo + hi) >> 1;
+          if (ts[m] <= t) lo = m;
+          else hi = m;
+        }
+        const f = (t - ts[lo]) / (ts[hi] - ts[lo]),
+          a = arr[lo],
+          b = arr[hi];
+        return Array.isArray(a) ? a.map((v, i) => lerp(v, b[i], f)) : lerp(a, b, f);
+      }
+      const fl = (key, t) => sampleAt(F.t, F[key], t);
+      const pf = (key, t) => sampleAt(F.t, D.performer[key], t);
+      const pl = (key, t) => sampleAt(PL.t, PL[key], t);
+      const series = (ts, arr, t) => sampleAt(ts, arr, t);
+      const ENERGY_T = A.energy.map((_, i) => (i / (A.energy.length - 1)) * DUR);
+      const energyAt = (t) => sampleAt(ENERGY_T, A.energy, t);
+      const shotAt = (t) =>
+        Math.max(
+          0,
+          D.shots.findIndex((s, i) => t < s.end || i === D.shots.length - 1)
+        );
+      function beatPhase(t) {
+        const b = A.beats,
+          per = 60 / A.tempo;
+        if (t < b[0]) return (t - b[0]) / per;
+        if (t > b[b.length - 1]) return b.length - 1 + (t - b[b.length - 1]) / per;
+        return sampleAt(
+          b,
+          b.map((_, i) => i),
+          t
+        );
+      }
+      const b0 = beatPhase(A.downbeats[0]);
+
+      // ---------- state, rail and info panel
+      let step = 0,
+        t0 = performance.now(),
+        playing = !reduce,
+        pausedAt = 0;
+      const rail = document.getElementById("rail");
+      FLOW.forEach((f, i) => {
+        const b = document.createElement("button");
+        b.className = "node";
+        b.innerHTML = `<span class="dot"></span><small>${f.node}</small><span class="bar"></span>`;
+        b.addEventListener("click", () => go(i));
+        rail.appendChild(b);
+      });
+      const nodes = [...rail.querySelectorAll(".node")];
+      const video = document.getElementById("film");
+
+      const row = (a, b, on) => `<div${on ? ' class="on"' : ""}><dt>${a}</dt><dd>${b}</dd></div>`;
+      const mmss = (t) => `${t.toFixed(1)} s`;
+      const PANELS = [
+        () => [
+          "Detected",
+          [
+            ["Tempo", `${A.tempo.toFixed(1)} BPM`],
+            ["Beats", `${A.beats.length}`],
+            ["Bars of 4", `${A.downbeats.length}`],
+            ["Phrases of 8 beats", `${A.phrases.length}`],
+          ],
+          "How",
+          [
+            ["Onsets", "spectral flux"],
+            ["Beats", "dynamic programming"],
+            ["Bar lines", "strongest of 4 offsets"],
+            ["Loudness", "RMS, 1 s window"],
+          ],
+          "Here the song is analysed offline with librosa. On the drone this would run on a microphone feed with a causal beat tracker, which reacts a beat or two later.",
+        ],
+        () => [
+          "Performer",
+          [
+            ["Robot", "Unitree G1, 29 joints"],
+            ["Guitar", "3/4 size, on the torso"],
+            ["IK per hand", "7 joints"],
+            ["Worst IK error", "0.2 mm"],
+          ],
+          "Motion",
+          [
+            ["Right hand", "down on beats, up between"],
+            ["Stroke", "3–6 cm, follows loudness"],
+            ["Left hand", "1 chord per bar"],
+            ["Body", "sway per bar, nod per beat"],
+          ],
+          "The robot is posed kinematically from the song, not balanced by a controller. Only the drone is simulated with full physics.",
+        ],
+        (t) => [
+          "Shots",
+          D.shots.map((s, i) => [`${i + 1} · ${s.title}`, `${s.start.toFixed(1)}–${s.end.toFixed(1)} s`, i === shotAt(t)]),
+          "Limits",
+          [
+            ["Closest to my axis", `${L.r_min} m`],
+            ["Closest to a body part", `${S.min_clearance} m (≥ ${L.clearance})`],
+            ["Lowest height", `${L.z_min} m`],
+            ["Top planned speed", `${Math.max(...PL.speed).toFixed(1)} m/s`],
+          ],
+          D.shots[shotAt(t)].why,
+        ],
+        () => [
+          "Tracking",
+          [
+            ["Path error, mean", `${S.mean_err_cm} cm`],
+            ["Path error, max", `${S.max_err_cm} cm`],
+            ["Steepest tilt", `${S.max_tilt_deg}°`],
+            ["Top speed", `${S.max_speed} m/s`],
+          ],
+          "Setup",
+          [
+            ["Drone", "Skydio X2 model, 1.3 kg"],
+            ["Controller", "geometric SE(3), 500 Hz"],
+            ["Wind, mean", `${S.mean_wind} m/s, gusting`],
+            ["Framing error, mean", `${S.mean_framing_deg}°`],
+          ],
+          "MuJoCo simulates the drone's rigid-body dynamics, rotor thrusts and air drag. The gimbal is idealised: it is levelled perfectly and only limited in speed.",
+        ],
+        () => [
+          "Take",
+          [
+            ["Length", mmss(DUR)],
+            ["Camera moves", `${D.shots.length}`],
+            ["Collisions", `${S.contacts}`],
+            ["Pilot inputs", "0"],
+          ],
+          "Rendered",
+          [
+            ["Simulator", "MuJoCo 3"],
+            ["Video", "1280 × 720, 30 fps"],
+            ["Physics step", "2 ms"],
+            ["Song", "10,000 Hours, guitar cover"],
+          ],
+          "This is a simulation. The next step is to fly the same director on a real drone, with a person tracker in place of the simulated tracked points.",
+        ],
+      ];
+      function renderPanel(t = 0) {
+        const f = FLOW[step],
+          p = PANELS[step](t);
+        document.getElementById("snum").textContent = `Step ${step + 1} / ${FLOW.length} · ${f.node}`;
+        document.getElementById("stitle").textContent = f.t;
+        document.getElementById("stext").textContent = f.text;
+        document.getElementById("hudL").textContent = f.hud;
+        document.getElementById("hudR").textContent = "MuJoCo simulation";
+        document.getElementById("h1").textContent = p[0];
+        document.getElementById("f1").innerHTML = p[1].map((r) => row(...r)).join("");
+        document.getElementById("h2").textContent = p[2];
+        document.getElementById("f2").innerHTML = p[3].map((r) => row(...r)).join("");
+        document.getElementById("snote").textContent = p[4];
+        const chip = (n, c) => `<span class="chip"><i style="background:${c}"></i>${n}</span>`;
+        const CH = [
+          [
+            ["Waveform", COL.wave],
+            ["Beat", COL.beat],
+            ["Bar line", COL.bar],
+            ["Loudness", COL.energy],
+          ],
+          [
+            ["Strumming hand", COL.strum],
+            ["Fretting hand", COL.fret],
+            ["Guitar", COL.guitar],
+            ["Beat", COL.beat],
+          ],
+          D.shots.map((s) => [s.title, s.colour]),
+          [
+            ["Planned path", COL.ref],
+            ["Flown path", COL.flown],
+            ["Drone and view", COL.drone],
+            ["Keep-out zone", COL.keepout],
+          ],
+          D.shots.map((s) => [s.title, s.colour]),
+        ];
+        document.getElementById("chips").innerHTML = CH[step].map((c) => chip(...c)).join("");
+        nodes.forEach((nd, i) => {
+          nd.classList.toggle("on", i === step);
+          nd.classList.toggle("done", i < step);
+          nd.setAttribute("aria-current", i === step ? "step" : "false");
+        });
+        video.hidden = step !== 4;
+        video.muted = !sound;
+        if (step === 4) {
+          video.currentTime = 0;
+          if (playing) video.play().catch(() => {});
+        } else video.pause();
+        postHeight();
+      }
+      let lastShot = -1;
+      function go(i) {
+        step = (i + FLOW.length) % FLOW.length;
+        t0 = performance.now();
+        pausedAt = 0;
+        lastShot = -1;
+        renderPanel();
+      }
+      document.getElementById("prev").onclick = () => go(step - 1);
+      document.getElementById("next").onclick = () => go(step + 1);
+      const playBtn = document.getElementById("play");
+      playBtn.onclick = () => {
+        playing = !playing;
+        playBtn.textContent = playing ? "Pause" : "Play";
+        if (playing) t0 = performance.now() - pausedAt;
+        else pausedAt = performance.now() - t0;
+        if (step === 4) playing ? video.play().catch(() => {}) : video.pause();
+      };
+      playBtn.textContent = playing ? "Pause" : "Play";
+      video.addEventListener("ended", () => {
+        if (playing) go(0);
+      });
+      // sound: off until the reader asks (browsers block audio before a click), then follows the animation clock
+      const song = document.getElementById("song"),
+        soundBtn = document.getElementById("sound");
+      let sound = false;
+      soundBtn.onclick = () => {
+        sound = !sound;
+        soundBtn.textContent = sound ? "♪ Sound off" : "♪ Sound on";
+        soundBtn.setAttribute("aria-pressed", String(sound));
+        video.muted = !sound;
+      };
+      function syncSound(T) {
+        if (!sound || step === 4 || !playing) {
+          if (!song.paused) song.pause();
+          return;
+        }
+        if (song.paused) {
+          song.currentTime = T;
+          song.play().catch(() => {});
+        } else if (Math.abs(song.currentTime - T) > 0.25) song.currentTime = T;
+      }
+
+      // ---------- drawing helpers
+      const cv = document.getElementById("cv"),
+        ctx = cv.getContext("2d");
+      function fit() {
+        const r = cv.getBoundingClientRect(),
+          d = devicePixelRatio || 1;
+        if (cv.width !== Math.round(r.width * d) || cv.height !== Math.round(r.height * d)) {
+          cv.width = Math.round(r.width * d);
+          cv.height = Math.round(r.height * d);
+        }
+        ctx.setTransform(d, 0, 0, d, 0, 0);
+        return [r.width, r.height];
+      }
+      const clamp01 = (x) => Math.max(0, Math.min(1, x));
+      const MONO = "ui-monospace, Menlo, Consolas, monospace";
+      function label(txt, x, y, col = "#d3d8de", align = "left", font = `500 11.5px ${MONO}`) {
+        ctx.font = font;
+        ctx.fillStyle = col;
+        ctx.textAlign = align;
+        ctx.fillText(txt, x, y);
+        ctx.textAlign = "left";
+      }
+      function line(pts, col, w = 1.5, dash) {
+        if (pts.length < 2) return;
+        ctx.beginPath();
+        pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+        ctx.strokeStyle = col;
+        ctx.lineWidth = w;
+        ctx.setLineDash(dash || []);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+      function dot(x, y, r, fill, stroke) {
+        ctx.beginPath();
+        ctx.arc(x, y, r, 0, 2 * Math.PI);
+        if (fill) {
+          ctx.fillStyle = fill;
+          ctx.fill();
+        }
+        if (stroke) {
+          ctx.strokeStyle = stroke;
+          ctx.lineWidth = 1.5;
+          ctx.stroke();
+        }
+      }
+      function arrow(x0, y0, x1, y1, col, w = 2) {
+        const a = Math.atan2(y1 - y0, x1 - x0),
+          hl = Math.min(8, Math.hypot(x1 - x0, y1 - y0) * 0.45);
+        line(
+          [
+            [x0, y0],
+            [x1, y1],
+          ],
+          col,
+          w
+        );
+        ctx.beginPath();
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x1 - hl * Math.cos(a - 0.4), y1 - hl * Math.sin(a - 0.4));
+        ctx.lineTo(x1 - hl * Math.cos(a + 0.4), y1 - hl * Math.sin(a + 0.4));
+        ctx.closePath();
+        ctx.fillStyle = col;
+        ctx.fill();
+      }
+      // chart and scene areas: side by side on wide screens, stacked on narrow ones
+      function split(W, H, frac = 0.5) {
+        const top = 40,
+          bot = 30;
+        if (W >= 620) {
+          const w1 = Math.round(W * frac);
+          return { scene: { x: 0, y: top, w: w1, h: H - top - bot }, chart: { x: w1, y: top, w: W - w1, h: H - top - bot } };
+        }
+        const h1 = Math.round((H - top - bot) * 0.55);
+        return { scene: { x: 0, y: top, w: W, h: h1 }, chart: { x: 0, y: top + h1, w: W, h: H - top - bot - h1 } };
+      }
+      function axes(box, [x0, x1], [y0, y1], yt, xlab, ylab, xt) {
+        const l = box.x + 44,
+          r = box.x + box.w - 14,
+          t = box.y + 16,
+          b = box.y + box.h - 22;
+        const X = (x) => l + ((x - x0) / (x1 - x0)) * (r - l),
+          Y = (y) => b - ((y - y0) / (y1 - y0)) * (b - t);
+        ctx.strokeStyle = "#2a2f36";
+        ctx.lineWidth = 1;
+        for (const v of yt) {
+          ctx.beginPath();
+          ctx.moveTo(l, Y(v));
+          ctx.lineTo(r, Y(v));
+          ctx.stroke();
+          label(`${v}`, l - 6, Y(v) + 4, "#7d858f", "right", `500 10.5px ${MONO}`);
+        }
+        for (const v of xt || []) label(`${v}`, X(v), b + 14, "#7d858f", "center", `500 10.5px ${MONO}`);
+        if (ylab) label(ylab, l, t - 4, "#98a0ab", "left", `500 10.5px ${MONO}`);
+        if (xlab) label(xlab, r, b + 14, "#98a0ab", "right", `500 10.5px ${MONO}`);
+        return { l, r, t, b, X, Y };
+      }
+      // top view of the clearing: world x (the way I face) points up, y (my left) points left
+      function topView(box, radius) {
+        const s = (Math.min(box.w, box.h) / 2 - 18) / radius,
+          cx = box.x + box.w / 2,
+          cy = box.y + box.h / 2 + 4;
+        const P = (p) => [cx - p[1] * s, cy - p[0] * s];
+        ctx.strokeStyle = "#232830";
+        ctx.lineWidth = 1;
+        for (let rr = 2; rr <= radius; rr += 2) {
+          ctx.beginPath();
+          ctx.arc(cx, cy, rr * s, 0, 2 * Math.PI);
+          ctx.stroke();
+          label(`${rr} m`, cx + rr * s * 0.71 + 3, cy + rr * s * 0.71 + 10, "#5d6670", "left", `500 10px ${MONO}`);
+        }
+        ctx.setLineDash([4, 4]);
+        ctx.strokeStyle = COL.keepout;
+        ctx.beginPath();
+        ctx.arc(cx, cy, L.r_min * s, 0, 2 * Math.PI);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        // me: a dot, the way I face, and the guitar neck pointing to my left
+        dot(cx, cy, 6, COL.body);
+        arrow(cx, cy, cx, cy - 0.9 * s, COL.body, 1.5);
+        line(
+          [
+            [cx + 0.1 * s, cy - 0.15 * s],
+            [cx - 0.55 * s, cy - 0.2 * s],
+          ],
+          COL.guitar,
+          3
+        );
+        label("facing", cx + 6, cy - 0.9 * s, "#98a0ab", "left", `500 10px ${MONO}`);
+        return { P, s, cx, cy };
+      }
+      function droneGlyph(x, y, yaw, fovDeg, s, col) {
+        // camera view wedge, then the drone; yaw is in world frame (0 = +x = screen up)
+        const half = ((fovDeg * 16) / 9 / 2) * (Math.PI / 180),
+          len = 1.4 * s;
+        const dir = (a) => [x - Math.sin(a) * len, y - Math.cos(a) * len];
+        const a1 = dir(yaw - half),
+          a2 = dir(yaw + half);
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.lineTo(...a1);
+        ctx.lineTo(...a2);
+        ctx.closePath();
+        ctx.fillStyle = "rgba(38,152,186,0.18)";
+        ctx.fill();
+        ctx.strokeStyle = "rgba(38,152,186,0.6)";
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        for (const [dx, dy] of [
+          [-1, -1],
+          [1, -1],
+          [1, 1],
+          [-1, 1],
+        ])
+          dot(x + dx * 5, y + dy * 5, 3.2, null, col);
+        dot(x, y, 3.5, col);
+      }
+
+      // ---------- step 1: listen
+      function drawListen(W, H, T) {
+        const top = 44,
+          l = 46,
+          r = W - 20;
+        const X = (t) => l + (t / DUR) * (r - l);
+        const laneWave = { y: top + 34, h: Math.max(60, H * 0.26) },
+          mid = laneWave.y + laneWave.h / 2;
+        // phrases
+        label("PHRASES → CAMERA MOVES", l, top + 12, "#98a0ab", "left", `600 10.5px ${MONO}`);
+        A.phrases.forEach(([a, b], i) => {
+          if (T < a) return;
+          const p = clamp01((T - a) / 0.6),
+            x0 = X(a) + 1,
+            x1 = X(Math.min(b, Math.max(T, a)));
+          ctx.globalAlpha = 0.25 + 0.75 * p;
+          ctx.fillStyle = D.shots[i].colour;
+          ctx.fillRect(x0, top + 18, Math.max(0, x1 - x0 - 1), 8);
+          ctx.globalAlpha = 1;
+          if (W >= 620) label(`${i + 1}`, x0 + 2, top + 40, D.shots[i].colour, "left", `600 10.5px ${MONO}`);
+        });
+        // waveform, revealed up to T
+        const wf = A.waveform,
+          mx = Math.max(...wf.map((w) => Math.max(-w[0], w[1])));
+        for (let k = 0; k < wf.length; k++) {
+          const t = (k / wf.length) * DUR,
+            x = X(t);
+          ctx.strokeStyle = t <= T ? "#8b949e" : "#2b3036";
+          ctx.lineWidth = Math.max(1, (r - l) / wf.length - 0.5);
+          ctx.beginPath();
+          ctx.moveTo(x, mid - (wf[k][1] / mx) * laneWave.h * 0.48);
+          ctx.lineTo(x, mid - (wf[k][0] / mx) * laneWave.h * 0.48);
+          ctx.stroke();
+        }
+        // beats and bar lines
+        const beatY = laneWave.y + laneWave.h + 14;
+        label("BEATS", l, beatY - 2, "#98a0ab", "left", `600 10.5px ${MONO}`);
+        A.beats.forEach((b, i) => {
+          if (b > T) return;
+          const isBar = A.downbeats.some((d) => Math.abs(d - b) < 1e-3),
+            age = T - b,
+            pop = Math.max(0, 1 - age / 0.3);
+          const h = (isBar ? 18 : 9) + 8 * pop;
+          line(
+            [
+              [X(b), beatY + 6],
+              [X(b), beatY + 6 + h],
+            ],
+            isBar ? COL.bar : COL.beat,
+            isBar ? 2 : 1
+          );
+        });
+        // loudness
+        const eTop = beatY + 44,
+          eH = Math.max(40, H - eTop - 50);
+        label("LOUDNESS", l, eTop - 6, "#98a0ab", "left", `600 10.5px ${MONO}`);
+        const pts = [];
+        for (let k = 0; k <= 200; k++) {
+          const t = (k / 200) * DUR;
+          if (t > T) break;
+          pts.push([X(t), eTop + eH - energyAt(t) * eH]);
+        }
+        line(pts, COL.energy, 2);
+        // playhead and a beat pulse
+        line(
+          [
+            [X(T), top + 14],
+            [X(T), eTop + eH],
+          ],
+          "#ffffff",
+          1.2
+        );
+        const bp = beatPhase(T),
+          flash = bp >= 0 ? Math.max(0, 1 - (bp - Math.floor(bp)) * 3) : 0;
+        dot(22, mid, 6 + 7 * flash, `rgba(38,152,186,${0.35 + 0.65 * flash})`);
+        const beatInBar = bp >= b0 ? (Math.floor(bp - b0) % 4) + 1 : "–";
+        label(`t ${T.toFixed(1)} s · beat ${beatInBar}/4 · bar ${bp >= b0 ? Math.floor((bp - b0) / 4) + 1 : "–"}`, 16, H - 12);
+        if (W >= 560) label(`${A.tempo.toFixed(1)} BPM · beat every ${(60 / A.tempo).toFixed(2)} s`, W - 16, H - 12, "#98a0ab", "right");
+      }
+
+      // ---------- step 2: perform
+      function drawPerform(W, H, T) {
+        const { scene, chart } = split(W, H, 0.46);
+        // front view: screen x = my left (+y), screen y = up
+        const s = Math.min(scene.w / 1.5, scene.h / 1.55),
+          cx = scene.x + scene.w / 2,
+          gy = scene.y + scene.h - 8;
+        const V = (p) => [cx + p[1] * s, gy - p[2] * s];
+        line(
+          [
+            [scene.x + 16, gy],
+            [scene.x + scene.w - 16, gy],
+          ],
+          "#2a2f36",
+          1
+        );
+        const face = pf("face", T),
+          gc = pf("guitar", T),
+          sh = pf("strum_hand", T),
+          fh = pf("fret_hand", T);
+        const hipZ = 0.72,
+          neckZ = face[2] - 0.14;
+        const hip = [0, face[1] * 0.3, hipZ],
+          neck = [0, face[1] * 0.8, neckZ];
+        const lsh = [0, neck[1] + 0.13, neckZ - 0.04],
+          rsh = [0, neck[1] - 0.13, neckZ - 0.04];
+        ctx.lineCap = "round";
+        for (const sgn of [-1, 1]) {
+          line([V([0, hip[1] + sgn * 0.06, hipZ]), V([0, sgn * 0.09, 0.32]), V([0, sgn * 0.1, 0.02])], COL.body, 7);
+        }
+        line([V(hip), V(neck)], COL.body, 16);
+        line([V(lsh), V(rsh)], COL.body, 9);
+        dot(...V([0, face[1], face[2] + 0.01]), 0.075 * s, "#2a2f36", COL.body);
+        // guitar: the sound hole sits 5 cm before the guitar centre along the neck, neck tilted 28°
+        const a = (28 * Math.PI) / 180,
+          u = [0, Math.cos(a), Math.sin(a)];
+        const hole = gc.map((v, i) => v - 0.05 * u[i]);
+        const at = (k) => hole.map((v, i) => v + k * u[i]);
+        dot(...V(at(-0.13)), 0.165 * s, COL.guitar);
+        dot(...V(at(0.08)), 0.125 * s, COL.guitar);
+        dot(...V(at(0.0)), 0.04 * s, "#1a120c");
+        line([V(at(0.15)), V(at(0.5))], "#6b3b18", 0.045 * s);
+        line([V(at(0.5)), V(at(0.66))], "#6b3b18", 0.065 * s);
+        // fret positions for reference
+        for (let k = 1; k <= 7; k++) {
+          const uu = 0.5 - 0.7 * (1 - Math.pow(2, -k / 12));
+          const p = V(at(uu)),
+            q = [-Math.sin(a) * 0.024 * s, -Math.cos(a) * 0.024 * s];
+          line(
+            [
+              [p[0] - q[0], p[1] - q[1]],
+              [p[0] + q[0], p[1] + q[1]],
+            ],
+            "#d8c9a8",
+            1
+          );
+        }
+        // arms with a bent elbow
+        const elbow = (sp, hp, out) => [0, (sp[1] + hp[1]) / 2 + out, Math.min(sp[2], hp[2]) - 0.08];
+        line([V(rsh), V(elbow(rsh, sh, -0.12)), V(sh)], COL.body, 6);
+        line([V(lsh), V(elbow(lsh, fh, 0.08)), V(fh)], COL.body, 6);
+        // hand trails over the last second
+        for (const [key, col] of [
+          ["strum_hand", COL.strum],
+          ["fret_hand", COL.fret],
+        ]) {
+          const pts = [];
+          for (let k = 0; k <= 30; k++) pts.push(V(pf(key, Math.max(0, T - 1 + k / 30))));
+          line(pts, col, 1.5);
+          dot(...V(pf(key, T)), 6, col);
+        }
+        ctx.lineCap = "butt";
+        const bp = beatPhase(T),
+          bar = Math.floor((bp - b0) / 4);
+        label(`chord ${CHORDS[((bar % 4) + 4) % 4]}`, ...V([0, fh[1] + 0.05, fh[2] + 0.12]), COL.fret);
+
+        // charts: strum hand height and fret hand position over a 4 s window
+        const win = 4,
+          ta = T - win;
+        const h2 = chart.h / 2;
+        const box1 = { x: chart.x, y: chart.y, w: chart.w, h: h2 },
+          box2 = { x: chart.x, y: chart.y + h2, w: chart.w, h: h2 };
+        const zs = D.performer.strum_hand.map((p) => p[2]),
+          zmid = (Math.max(...zs) + Math.min(...zs)) / 2;
+        const ax1 = axes(box1, [ta, T], [-6, 6], [-5, 0, 5], "", "strumming hand height, cm");
+        A.beats.forEach((b) => {
+          if (b < ta || b > T) return;
+          line(
+            [
+              [ax1.X(b), ax1.t],
+              [ax1.X(b), ax1.b],
+            ],
+            A.downbeats.some((d) => Math.abs(d - b) < 1e-3) ? "#4a525c" : "#2f353d",
+            1
+          );
+        });
+        const p1 = [];
+        for (let k = 0; k <= 120; k++) {
+          const t = ta + (k / 120) * win;
+          if (t < 0) continue;
+          p1.push([ax1.X(t), ax1.Y((pf("strum_hand", t)[2] - zmid) * 100)]);
+        }
+        line(p1, COL.strum, 2);
+        label("a down-stroke starts on every beat (grey lines)", ax1.r, ax1.b + 14, "#7d858f", "right", `500 10.5px ${MONO}`);
+        // fret hand: distance along the neck from its mean
+        // measured from the guitar centre, so the body sway does not show up as hand motion
+        const u2 = [Math.cos(a), Math.sin(a)],
+          along = (p, g) => (p[1] - g[1]) * u2[0] + (p[2] - g[2]) * u2[1];
+        const al = D.performer.fret_hand.map((p, i) => along(p, D.performer.guitar[i])),
+          amid = (Math.max(...al) + Math.min(...al)) / 2;
+        const ax2 = axes(box2, [ta, T], [-5, 5], [-4, 0, 4], "", "fretting hand along the neck, cm");
+        A.downbeats.forEach((b, i) => {
+          if (b < ta - 2.6 || b > T) return;
+          if (b >= ta)
+            line(
+              [
+                [ax2.X(b), ax2.t],
+                [ax2.X(b), ax2.b],
+              ],
+              "#4a525c",
+              1
+            );
+          const xm = ax2.X(Math.max(ta, b) + 0.2);
+          if (xm < ax2.r - 20) label(CHORDS[i % 4], xm, ax2.t + 10, COL.fret, "left", `600 11px ${MONO}`);
+        });
+        const p2 = [];
+        for (let k = 0; k <= 120; k++) {
+          const t = ta + (k / 120) * win;
+          if (t < 0) continue;
+          p2.push([ax2.X(t), ax2.Y((along(pf("fret_hand", t), pf("guitar", t)) - amid) * 100)]);
+        }
+        line(p2, COL.fret, 2);
+        label("slides to the next chord at each bar line", ax2.r, ax2.b + 14, "#7d858f", "right", `500 10.5px ${MONO}`);
+        label(`t ${T.toFixed(1)} s`, 16, H - 12);
+      }
+
+      // ---------- step 3: direct
+      const TH_RANGE = [Math.floor(Math.min(...PL.theta) / 30) * 30 - 10, Math.ceil(Math.max(...PL.theta) / 30) * 30 + 10];
+      const TH_TICKS = [];
+      for (let v = Math.ceil(TH_RANGE[0] / 90) * 90; v <= TH_RANGE[1]; v += 90) TH_TICKS.push(v);
+      function drawDirect(W, H, T) {
+        const { scene, chart } = split(W, H, 0.5);
+        const tv = topView(scene, 7);
+        const k = shotAt(T);
+        // the planned path up to T, coloured by shot
+        D.shots.forEach((s, i) => {
+          const pts = [];
+          for (let j = 0; j < PL.t.length; j++) {
+            const t = PL.t[j];
+            if (t < s.start - 0.2 || t > s.end + 0.01 || t > T) continue;
+            pts.push(tv.P(PL.pos[j]));
+          }
+          line(pts, s.colour, i === k ? 3 : 2);
+        });
+        // keyframes of the shots that have started
+        const kt = D.keys.t,
+          kv = D.keys.v;
+        kt.forEach((t, j) => {
+          const i = shotAt(Math.max(0, t - 1e-3));
+          if (j > 0 && D.shots[i].start > T) return;
+          const th = (kv[j][0] * Math.PI) / 180,
+            p = [kv[j][1] * Math.cos(th), kv[j][1] * Math.sin(th)];
+          const [x, y] = tv.P(p);
+          dot(x, y, 4, "#0b0d10", j === 0 ? "#ffffff" : D.shots[shotAt(Math.max(0, t - 1e-3))].colour);
+        });
+        const pos = pl("pos", T),
+          aim = fl("aim", T);
+        const [dx, dy] = tv.P(pos);
+        droneGlyph(dx, dy, Math.atan2(aim[1] - pos[1], aim[0] - pos[0]), pl("fov", T), tv.s, COL.drone);
+        label(`height ${pos[2].toFixed(1)} m`, dx + 10, dy - 10, "#d3d8de", "left", `500 10.5px ${MONO}`);
+        // channels: theta, r, z
+        const n = 3,
+          hh = chart.h / n;
+        const chans = [
+          ["θ around me, deg", PL.theta, TH_RANGE, TH_TICKS],
+          ["distance r, m", PL.r, [1, 7], [2, 4, 6]],
+          ["height z, m", PL.z, [0, 4.5], [1, 2, 3, 4]],
+        ];
+        chans.forEach(([name, arr, yr, yt], c) => {
+          const box = { x: chart.x, y: chart.y + c * hh, w: chart.w, h: hh };
+          const ax = axes(box, [0, DUR], yr, yt, c === n - 1 ? "song time, s" : "", name, c === n - 1 ? [0, 8, 16, 24, 32] : null);
+          D.shots.forEach((s) => {
+            ctx.fillStyle = s.colour + "22";
+            ctx.fillRect(ax.X(s.start), ax.t, ax.X(s.end) - ax.X(s.start), ax.b - ax.t);
+          });
+          const pts = [];
+          for (let j = 0; j < PL.t.length && PL.t[j] <= T; j++) pts.push([ax.X(PL.t[j]), ax.Y(arr[j])]);
+          line(pts, "#e8edf2", 1.8);
+          kt.forEach((t, j) => {
+            if (t > T + 0.01) return;
+            const v = [kv[j][0], kv[j][1], kv[j][2]][c];
+            dot(ax.X(t), ax.Y(v), 3, D.shots[shotAt(Math.max(0, t - 1e-3))].colour);
+          });
+          line(
+            [
+              [ax.X(T), ax.t],
+              [ax.X(T), ax.b],
+            ],
+            "#ffffff",
+            1
+          );
+        });
+        label(`shot ${k + 1}/${D.shots.length}: ${D.shots[k].title}`, 16, H - 12, D.shots[k].colour);
+        if (k !== lastShot) {
+          lastShot = k;
+          renderPanel(T);
+        }
+      }
+
+      // ---------- step 4: fly
+      function drawFly(W, H, T) {
+        const { scene, chart } = split(W, H, 0.5);
+        const tv = topView(scene, 7);
+        // planned path (dashed) and the path flown so far
+        line(
+          PL.pos.map((p) => tv.P(p)),
+          "rgba(255,209,102,0.55)",
+          1.4,
+          [5, 4]
+        );
+        const fp = [];
+        for (let j = 0; j < F.t.length && F.t[j] <= T; j++) fp.push(tv.P(F.pos[j]));
+        line(fp, COL.flown, 2.2);
+        const pos = fl("pos", T),
+          aim = fl("aim", T);
+        const [dx, dy] = tv.P(pos);
+        line([[dx, dy], tv.P(aim)], "rgba(255,255,255,0.35)", 1, [2, 3]);
+        droneGlyph(dx, dy, fl("yaw", T), fl("fov", T), tv.s, COL.drone);
+        // wind arrow
+        const w = fl("wind", T),
+          ws = Math.hypot(w[0], w[1]);
+        const wx = scene.x + 40,
+          wy = scene.y + scene.h - 34;
+        arrow(wx, wy, wx - w[1] * 16, wy - w[0] * 16, "#98a0ab", 2);
+        label(`wind ${ws.toFixed(1)} m/s`, wx - 26, wy + 26, "#98a0ab", "left", `500 10.5px ${MONO}`);
+        // charts: path error and tilt, then rotor thrusts
+        const h1 = chart.h * 0.38,
+          h2 = chart.h * 0.34;
+        const box1 = { x: chart.x, y: chart.y, w: chart.w, h: h1 },
+          box2 = { x: chart.x, y: chart.y + h1, w: chart.w, h: h2 },
+          box3 = { x: chart.x, y: chart.y + h1 + h2, w: chart.w, h: chart.h - h1 - h2 };
+        const ax1 = axes(box1, [0, DUR], [0, 6], [0, 2, 4, 6], "", "distance from the planned path, cm");
+        const ax2 = axes(box2, [0, DUR], [0, 20], [0, 10, 20], "song time, s", "tilt, deg", [0, 8, 16, 24, 32]);
+        for (const [ax, key, sc, col] of [
+          [ax1, "err", 100, COL.flown],
+          [ax2, "tilt", 1, "#c77dff"],
+        ]) {
+          D.shots.forEach((s) => {
+            ctx.fillStyle = s.colour + "1c";
+            ctx.fillRect(ax.X(s.start), ax.t, ax.X(s.end) - ax.X(s.start), ax.b - ax.t);
+          });
+          const pts = [];
+          for (let j = 0; j < F.t.length && F.t[j] <= T; j++) pts.push([ax.X(F.t[j]), ax.Y(Math.min(F[key][j] * sc, ax === ax1 ? 6 : 20))]);
+          line(pts, col, 1.6);
+          line(
+            [
+              [ax.X(T), ax.t],
+              [ax.X(T), ax.b],
+            ],
+            "#ffffff",
+            1
+          );
+        }
+        // rotor bars
+        const u = fl("u", T),
+          bl = box3.x + 44,
+          bw = (box3.w - 58) / 4;
+        label("rotor thrust, N (hover ≈ 3.2 N)", bl, box3.y + 14, "#98a0ab", "left", `500 10.5px ${MONO}`);
+        const bTop = box3.y + 24,
+          bH = box3.h - 46;
+        u.forEach((v, i) => {
+          const x = bl + i * bw + 6,
+            h = (Math.min(v, 8) / 8) * bH;
+          ctx.fillStyle = "#1b2027";
+          ctx.fillRect(x, bTop, bw - 12, bH);
+          ctx.fillStyle = COL.drone;
+          ctx.fillRect(x, bTop + bH - h, bw - 12, h);
+          label(`${i + 1} · ${v.toFixed(1)}`, x + (bw - 12) / 2, bTop + bH + 14, "#d3d8de", "center", `500 10.5px ${MONO}`);
+        });
+        const hov = bTop + bH - (3.25 / 8) * bH;
+        line(
+          [
+            [bl, hov],
+            [bl + 4 * bw, hov],
+          ],
+          "rgba(255,209,102,0.7)",
+          1,
+          [4, 3]
+        );
+        label(
+          `error ${(fl("err", T) * 100).toFixed(1)} cm · tilt ${fl("tilt", T).toFixed(1)}° · framing ${fl("framing", T).toFixed(2)}°`,
+          16,
+          H - 12
+        );
+      }
+
+      // ---------- step 5: film (the video plays above, the shot timeline below)
+      function drawFilm(W, H) {
+        const T = video.currentTime || 0,
+          y = H - 62,
+          l = 16,
+          r = W - 16;
+        const X = (t) => l + (t / DUR) * (r - l);
+        D.shots.forEach((s, i) => {
+          ctx.fillStyle = s.colour;
+          ctx.globalAlpha = i === shotAt(T) ? 1 : 0.45;
+          ctx.fillRect(X(s.start) + 1, y + 10, X(s.end) - X(s.start) - 2, 14);
+          ctx.globalAlpha = 1;
+        });
+        A.downbeats.forEach((b) =>
+          line(
+            [
+              [X(b), y + 28],
+              [X(b), y + 36],
+            ],
+            "#98a0ab",
+            1
+          )
+        );
+        line(
+          [
+            [X(T), y + 4],
+            [X(T), y + 40],
+          ],
+          "#ffffff",
+          2
+        );
+        const k = shotAt(T);
+        label(`shot ${k + 1}/${D.shots.length}: ${D.shots[k].title}`, l, H - 10, D.shots[k].colour);
+        if (W >= 560) label(`${T.toFixed(1)} / ${DUR.toFixed(1)} s`, r, H - 10, "#98a0ab", "right");
+      }
+
+      function tick(now) {
+        const [W, Hh] = fit(),
+          f = FLOW[step];
+        let el = playing ? now - t0 : pausedAt;
+        if (step !== 4 && playing && el > f.d) {
+          go(step + 1);
+          el = 0;
+        }
+        const u = step === 4 ? (video.currentTime || 0) / DUR : reduce ? 1 : Math.min(el / f.d, 1);
+        const T = Math.min(DUR, (f.t0 || 0) + (reduce ? (f.speed * f.d) / 1000 : (el / 1000) * f.speed));
+        nodes.forEach((nd, i) => nd.querySelector(".bar").style.setProperty("--p", i < step ? "100%" : i === step ? `${u * 100}%` : "0%"));
+        ctx.fillStyle = "#0b0d10";
+        ctx.fillRect(0, 0, W, Hh);
+        if (step === 0) drawListen(W, Hh, T);
+        else if (step === 1) drawPerform(W, Hh, T);
+        else if (step === 2) drawDirect(W, Hh, T);
+        else if (step === 3) drawFly(W, Hh, T);
+        else drawFilm(W, Hh);
+        syncSound(T);
+        requestAnimationFrame(tick);
+      }
+      renderPanel();
+      requestAnimationFrame(tick);
+    </script>
+  </body>
+</html>
