@@ -22,11 +22,11 @@ category: Personal
 
 ## How the drone films the song
 
-Turn the sound on to hear the song: every step plays in time with the music.
+The song plays once through the first four steps, in time with the animation; the last step is the full demo of the flight.
 
 <iframe scrolling="no" class="guitar-frame" src="{{ '/assets/guitar/guitar-drone.html' | relative_url }}" title="Animation of a drone filming a guitarist, with camera moves timed to the song" loading="lazy" allow="autoplay"></iframe>
 
-<p class="small text-muted">Simulated in MuJoCo with a Unitree G1 humanoid and a Skydio X2 drone; the last step is the video the drone camera recorded.</p>
+<p class="small text-muted">Simulated in MuJoCo with a Unitree G1 humanoid and a Skydio X2 drone.</p>
 
 <style>
   .post article p, .post article li { text-align: justify; hyphens: auto; }
