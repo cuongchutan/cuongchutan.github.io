@@ -91,11 +91,6 @@ photos:
     gap: 1.25rem 0.75rem;
     margin-top: 1.5rem;
   }
-  /* keeps the last row at its natural height instead of stretching it to the full width */
-  .travel-grid::after {
-    content: "";
-    flex: 10000 1 0;
-  }
   /* growing each photo in proportion to its aspect ratio gives every photo in a row the same height */
   .travel-photo {
     --ar: 1.5;
@@ -177,19 +172,46 @@ I grew up in Vietnam, studied and worked in Germany, and I love travelling. Wher
 <script>
   (function () {
     // set each photo's aspect ratio from the image itself, so the rows line up whatever the shape
+    var grid = document.getElementById("travel-grid"),
+      queued = false;
+    // the last row fills the width like the others, unless that would make it much taller than a normal row
+    // (e.g. a single photo left over): then it keeps the normal row height
+    function lastRow() {
+      queued = false;
+      var figs = Array.prototype.filter.call(grid.querySelectorAll(".travel-photo"), function (f) {
+        f.style.flexGrow = "";
+        return !f.classList.contains("later");
+      });
+      if (!figs.length) return;
+      var top = figs[figs.length - 1].offsetTop,
+        row = figs.filter(function (f) { return f.offsetTop === top; }),
+        rowH = parseFloat(getComputedStyle(grid).getPropertyValue("--row-h")) || 200,
+        h = row[0].querySelector("img").getBoundingClientRect().height;
+      if (h > 1.6 * rowH) row.forEach(function (f) { f.style.flexGrow = "0"; });
+    }
+    function relayout() {
+      if (!queued) {
+        queued = true;
+        requestAnimationFrame(lastRow);
+      }
+    }
     document.querySelectorAll(".travel-photo img").forEach(function (img) {
       function fit() {
         if (img.naturalWidth) img.closest(".travel-photo").style.setProperty("--ar", (img.naturalWidth / img.naturalHeight).toFixed(4));
+        relayout();
       }
       if (img.complete) fit();
       else img.addEventListener("load", fit);
     });
+    window.addEventListener("resize", relayout);
+    relayout();
     var more = document.getElementById("travel-more");
     if (!more) return;
     more.addEventListener("click", function () {
       var next = document.querySelectorAll(".travel-photo.later");
       for (var k = 0; k < Math.min({{ per_page }}, next.length); k++) next[k].classList.remove("later");
       if (next.length <= {{ per_page }}) more.remove();
+      relayout();
     });
   })();
 </script>
