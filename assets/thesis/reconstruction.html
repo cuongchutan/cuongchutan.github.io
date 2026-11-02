@@ -587,7 +587,10 @@
           note =
             "No CAD model exists for the car, so its geometric accuracy (Chamfer distance, F-score) cannot be measured. It is checked against the real object masks only.";
         else if (caseKey === "dragon")
-          note = "The hardest setup: with a static camera and the object turned by hand, only 20 of the 60 views end up in the final model.";
+          note =
+            m.views < m.input_frames
+              ? `The hardest setup: with a static camera and the object turned by hand, only ${m.views} of the ${m.input_frames} views end up in the final model.`
+              : `The hardest setup: a static camera and the object turned by hand. All ${m.views} keyframes end up in the final model.`;
         const n = document.getElementById("snote");
         n.textContent = note;
         n.hidden = !note;
