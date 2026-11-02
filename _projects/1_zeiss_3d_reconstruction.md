@@ -23,6 +23,7 @@ category: Work
 
 - On industrial objects, it was the **most accurate method (2.8 mm Chamfer distance)**.
 - Registered **100% of views** and ran **32% faster than COLMAP**.
+- In the example runs below, every input view was used, and the drill and the dragon came out at **2.3 mm and 2.8 mm** Chamfer distance.
 
 ## From video to 3D model
 
