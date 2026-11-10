@@ -5,6 +5,12 @@
 #   preview: assets/certificates/some-certificate-preview.jpg   (optional image of the PDF, links to it)
 # Remove personal data (date of birth, address, ID numbers) from scans before uploading.
 
+- date: 2026-08-30
+  title: Building LLM Applications With Prompt Engineering
+  issuer: NVIDIA
+  note: Online course. Certificate of Competency.
+  file: assets/certificates/2026-nvidia-building-llm.png
+
 - date: 2025-08-01
   title: IEEE RAS Summer School on Multi-Robot Systems
   issuer: Czech Technical University in Prague

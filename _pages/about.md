@@ -15,7 +15,7 @@ profile:
 
 selected_papers: false
 # project trailers in the Projects section below, in this order (file names in _projects/)
-featured_projects: [1_zeiss_3d_reconstruction, 2_bmw_robot_cell, 6_guitar_drone, 7_mrs_inspection_planners]
+featured_projects: [1_zeiss_3d_reconstruction, 2_bmw_robot_cell, 6_guitar_drone, 5_hust_slam]
 social: true # includes social icons at the bottom of the page
 
 announcements:
