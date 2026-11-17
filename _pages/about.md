@@ -78,7 +78,7 @@ Before that, I worked on human motion prediction for safe human-robot interactio
     <div class="edu-school">Friedrich-Alexander-Universität Erlangen-Nürnberg (FAU), Germany</div>
     <div class="edu-tags">
       <span class="edu-tag">Elite Program</span>
-      <span class="edu-tag">GPA 1.6 (German scale)</span>
+      <span class="edu-tag">GPA 1.7 (German scale)</span>
     </div>
     <div class="edu-note"><i class="fa-solid fa-users"></i> Member of the Bavarian Graduate School of Computational Engineering (BGCE), Elitenetzwerk Bayern</div>
   </div>
